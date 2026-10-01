@@ -387,7 +387,110 @@
     }
 
     /* Chart wrappers */
+    
+    /* ── Dashboard quick actions — even grid all devices ── */
+    .dash-qa-grid {
+      display: grid !important;
+      grid-template-columns: repeat(auto-fill, minmax(110px, 1fr)) !important;
+      gap: 14px !important;
+      margin-bottom: 24px !important;
+    }
+    @media (max-width: 480px) {
+      .dash-qa-grid {
+        grid-template-columns: repeat(3, 1fr) !important;
+        gap: 10px !important;
+      }
+    }
+    @media (min-width: 1100px) {
+      .dash-qa-grid {
+        grid-template-columns: repeat(5, 1fr) !important;
+      }
+    }
+    .dash-qa-grid .qa-tile {
+      min-height: 96px;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+    }
+
+    /* ── Richer KPI row ── */
+    .krow {
+      display: grid !important;
+      grid-template-columns: repeat(4, 1fr) !important;
+      gap: 16px !important;
+      margin-bottom: 22px !important;
+    }
+    @media (max-width: 900px) {
+      .krow { grid-template-columns: repeat(2, 1fr) !important; }
+    }
+    @media (max-width: 480px) {
+      .krow { grid-template-columns: 1fr 1fr !important; gap: 10px !important; }
+    }
+    .kpi {
+      min-height: 128px !important;
+      display: flex !important;
+      flex-direction: column !important;
+      justify-content: flex-start !important;
+    }
+    .kpi-val {
+      font-size: 32px !important;
+      font-weight: 800 !important;
+      letter-spacing: -0.04em !important;
+    }
+
+    /* Skeleton shimmer richer */
+    .kpi.kpi-skel, .skel {
+      background: linear-gradient(90deg, var(--sur2) 25%, var(--sur3) 50%, var(--sur2) 75%) !important;
+      background-size: 200% 100% !important;
+      animation: skelShimmer 1.2s ease-in-out infinite !important;
+      border: 1px solid var(--bdr) !important;
+    }
+    @keyframes skelShimmer {
+      0% { background-position: 200% 0; }
+      100% { background-position: -200% 0; }
+    }
+
+    /* Chart cards min height so not empty-looking */
     .chart-wrap {
+      min-height: 280px !important;
+      display: flex;
+      flex-direction: column;
+    }
+    .chart-inner {
+      flex: 1;
+      min-height: 200px;
+      position: relative;
+    }
+
+    /* Section cards bottom row */
+    #content .sec-card, .lower-card {
+      min-height: 140px;
+    }
+
+    /* Attendance punch — richer */
+    .att-punch-card {
+      padding: 20px 24px !important;
+      gap: 20px !important;
+      align-items: center !important;
+    }
+    .att-punch-title {
+      font-size: 11px !important;
+      letter-spacing: .06em !important;
+      color: var(--tx3) !important;
+    }
+    .att-punch-status {
+      font-size: 16px !important;
+      font-weight: 700 !important;
+    }
+
+    /* Greeting richer */
+    .dash-greet h1, .dash-hello, #content h1 {
+      font-weight: 800 !important;
+      letter-spacing: -0.03em !important;
+    }
+
+.chart-wrap {
       padding: 20px !important;
     }
     .chart-title {
@@ -14153,8 +14256,7 @@
               {ico: 'fa-address-card', lbl: 'Directory', view: 'empdir', c1: '#92400E', c2: '#F59E0B', mgr: true},
               {ico: 'fa-file-invoice-dollar', lbl: 'Salary', view: 'payroll', c1: '#111111', c2: '#4A4A4A', mgr: true}
             ].filter(function (a) { return a.all || (a.mgr && isMgr); });
-            var cols = mob ? Math.min(4, tiles.length) : Math.min(tiles.length, 5);
-            return '<div style="display:grid;grid-template-columns:repeat(' + cols + ',1fr);gap:' + (mob ? '10px' : '12px') + ';margin-bottom:20px" id="dashQuickAct">' +
+            return '<div class="dash-qa-grid" id="dashQuickAct">' +
               tiles.map(function (a) {
                 return '<button class="qa-tile" onclick="_loadV(\'' + a.view + '\')">' +
                   '<div class="qa-icon" style="background:linear-gradient(135deg,' + a.c1 + ',' + a.c2 + ')">' +
