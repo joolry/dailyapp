@@ -5,7 +5,7 @@
   <meta charset="UTF-8">
   <meta name="viewport"
     content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover">
-  <meta name="theme-color" content="#111111">
+  <meta name="theme-color" content="#3B82F6">
   <meta name="mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
@@ -19,7 +19,7 @@
   <!-- External Assets -->
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css">
   <link
-    href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:ital,wght@0,300;0,400;0,500;0,600;0,700;0,800;1,400&display=swap"
+    href="https://fonts.googleapis.com/css2?family=Be+Vietnam+Pro:ital,wght@0,300;0,400;0,500;0,600;0,700;0,800;1,400&family=Plus+Jakarta+Sans:ital,wght@0,400;0,500;0,600;0,700;0,800&display=swap"
     rel="stylesheet">
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js" defer></script>
   <!-- ── App Config: GAS_URL aur constants — sirf yahan change karo ── -->
@@ -52,57 +52,62 @@
                T=Teal, I=Info, A=Accent, l=light bg version
 ══════════════════════════════════════════════════════════════════════ */
     :root {
-      /* Brand palette — Joolry luxury (black / cream / soft coral) */
-      --P: #111111;
-      --Pd: #2A2A2A;
-      --Pl: rgba(17, 17, 17, .08);
-      --Pm: rgba(17, 17, 17, .16);
-      --G: #2F9E44;
-      --Gl: rgba(47, 158, 68, .10);
-      --R: #E03131;
-      --Rl: rgba(224, 49, 49, .10);
-      --O: #C45C26;
-      --Ol: rgba(196, 92, 38, .10);
-      --V: #7048E8;
-      --Vl: rgba(112, 72, 232, .10);
-      --T: #B76E79;
-      --Tl: rgba(183, 110, 121, .12);
-      --I: #0EA5E9;
-      --Il: rgba(14, 165, 233, .10);
-      --A: #E8B4B8;
-      --Al: rgba(232, 180, 184, .15);
+      /* ── Prompt-inspired design system + Joolry brand ── */
+      /* Primary: deep ink (Joolry) with soft blue interactive accent */
+      --P: #1E293B;
+      --Pd: #0F172A;
+      --Pl: rgba(30, 41, 59, .08);
+      --Pm: rgba(30, 41, 59, .16);
+      --accent: #3B82F6;
+      --accent-d: #2563EB;
+      --accent-l: rgba(59, 130, 246, .12);
 
-      /* Surfaces — soft cream luxury desk */
-      --bg: #F8F6F3;
+      --G: #10B981;
+      --Gl: rgba(16, 185, 129, .12);
+      --R: #EF4444;
+      --Rl: rgba(239, 68, 68, .12);
+      --O: #F59E0B;
+      --Ol: rgba(245, 158, 11, .12);
+      --V: #8B5CF6;
+      --Vl: rgba(139, 92, 246, .12);
+      --T: #06B6D4;
+      --Tl: rgba(6, 182, 212, .12);
+      --I: #3B82F6;
+      --Il: rgba(59, 130, 246, .12);
+      --A: #94A3B8;
+      --Al: rgba(148, 163, 184, .12);
+
+      /* Surfaces — Prompt soft slate */
+      --bg: #F1F5F9;
       --sur: #FFFFFF;
-      --sur2: #FAF8F5;
-      --sur3: #F3F0EC;
-      --bdr: #E8E4DE;
-      --bdr2: #D4CFC7;
+      --sur2: #F8FAFC;
+      --sur3: #F1F5F9;
+      --bdr: #E2E8F0;
+      --bdr2: #CBD5E1;
 
-      /* Text */
-      --tx: #111111;
-      --tx2: #4A4A4A;
-      --tx3: #8A8580;
-      --tx4: #C8C4BE;
+      /* Text — slate scale */
+      --tx: #0F172A;
+      --tx2: #475569;
+      --tx3: #94A3B8;
+      --tx4: #CBD5E1;
 
-      /* Sidebar — light cream shelf */
+      /* Sidebar */
       --sb: #FFFFFF;
-      --sb2: #FAF8F5;
-      --sbt: #111111;
+      --sb2: #F8FAFC;
+      --sbt: #0F172A;
       --sbt2: #64748B;
 
       /* Layout */
-      --sbw: 258px;
-      --tbh: 56px;
-      --r: 14px;
-      --r2: 10px;
-      --r3: 7px;
+      --sbw: 260px;
+      --tbh: 64px;
+      --r: 16px;
+      --r2: 12px;
+      --r3: 8px;
 
-      /* Shadows — flatter */
-      --shad: 0 1px 3px rgba(13, 27, 42, .06), 0 1px 2px rgba(13, 27, 42, .04);
-      --shad2: 0 4px 16px rgba(13, 27, 42, .09), 0 2px 5px rgba(13, 27, 42, .05);
-      --shad3: 0 16px 48px rgba(13, 27, 42, .13), 0 4px 14px rgba(13, 27, 42, .07);
+      /* Shadows — Prompt soft elevation */
+      --shad: 0 1px 2px rgba(15, 23, 42, .04), 0 1px 3px rgba(15, 23, 42, .06);
+      --shad2: 0 4px 12px rgba(15, 23, 42, .06), 0 2px 4px rgba(15, 23, 42, .04);
+      --shad3: 0 12px 32px rgba(15, 23, 42, .10), 0 4px 12px rgba(15, 23, 42, .06);
 
       /* Z-layers */
       --z-drop: 200;
@@ -112,26 +117,300 @@
       --z-sb: 100;
     }
 
-    /* ── Dark mode overrides ─────────────────────────────── */
     body.dark {
-      --bg: #0F172A;
-      --sur: #1E293B;
-      --sur2: #273344;
-      --sur3: #2d3a4d;
-      --bdr: #334155;
-      --bdr2: #475569;
-      --tx: #F1F5F9;
+      --bg: #0B1220;
+      --sur: #111827;
+      --sur2: #1E293B;
+      --sur3: #273344;
+      --bdr: #1E293B;
+      --bdr2: #334155;
+      --tx: #F8FAFC;
       --tx2: #CBD5E1;
       --tx3: #64748B;
       --tx4: #475569;
       --sb: #0B1220;
       --sb2: #111827;
-      --sbt: #e2e8f0;
-      --sbt2: #94a3b8;
-      --shad: 0 2px 16px rgba(0, 0, 0, .3);
-      --shad2: 0 8px 32px rgba(0, 0, 0, .4);
-      --shad3: 0 24px 64px rgba(0, 0, 0, .6);
+      --sbt: #F1F5F9;
+      --sbt2: #94A3B8;
+      --P: #E2E8F0;
+      --Pd: #F8FAFC;
+      --Pl: rgba(226, 232, 240, .08);
+      --accent: #60A5FA;
+      --accent-d: #3B82F6;
+      --accent-l: rgba(96, 165, 250, .15);
+      --shad: 0 1px 3px rgba(0, 0, 0, .4);
+      --shad2: 0 8px 24px rgba(0, 0, 0, .45);
+      --shad3: 0 20px 48px rgba(0, 0, 0, .55);
     }
+
+
+    /* ══════════════════════════════════════════════════════════════════════
+       PROMPT-STYLE COMPONENT LAYER (alignment + surfaces)
+    ══════════════════════════════════════════════════════════════════════ */
+    body {
+      letter-spacing: -0.01em;
+      -webkit-font-smoothing: antialiased;
+    }
+
+    /* Cards — soft elevation, generous radius */
+    .card, .chart-wrap, .kpi, .att-punch-card, .mod-panel,
+    .lbox, .pr-card-grid > .card {
+      background: var(--sur) !important;
+      border: 1px solid var(--bdr) !important;
+      border-radius: var(--r) !important;
+      box-shadow: var(--shad) !important;
+    }
+    .card:hover, .pr-card-grid > .card:hover {
+      box-shadow: var(--shad2) !important;
+    }
+
+    /* KPI — Prompt style: soft icon chip + clean numbers */
+    .kpi {
+      padding: 20px 18px !important;
+      position: relative;
+      overflow: hidden;
+    }
+    .kpi-ico {
+      width: 42px !important;
+      height: 42px !important;
+      border-radius: 12px !important;
+      background: var(--kib, var(--Pl)) !important;
+      color: var(--kc, var(--P)) !important;
+      display: flex !important;
+      align-items: center;
+      justify-content: center;
+      font-size: 16px !important;
+      margin-bottom: 14px !important;
+    }
+    .kpi-val {
+      font-size: 28px !important;
+      font-weight: 700 !important;
+      letter-spacing: -0.03em !important;
+      color: var(--tx) !important;
+      line-height: 1.1 !important;
+    }
+    .kpi-lbl {
+      font-size: 12px !important;
+      font-weight: 500 !important;
+      color: var(--tx3) !important;
+      margin-top: 6px !important;
+      text-transform: none !important;
+      letter-spacing: 0 !important;
+    }
+
+    /* Primary buttons — Prompt blue accent for actions */
+    .btn:not(.btn-outline):not(.btn-ghost):not(.l-btn) {
+      background: var(--accent) !important;
+      color: #fff !important;
+      border: none !important;
+      border-radius: 10px !important;
+      font-weight: 600 !important;
+      box-shadow: 0 1px 2px rgba(37, 99, 235, .2) !important;
+      transition: background .15s, transform .1s, box-shadow .15s !important;
+    }
+    .btn:not(.btn-outline):not(.btn-ghost):not(.l-btn):hover {
+      background: var(--accent-d) !important;
+      box-shadow: 0 4px 12px rgba(37, 99, 235, .25) !important;
+    }
+    .btn-outline, .btn.btn-outline {
+      background: var(--sur) !important;
+      color: var(--tx2) !important;
+      border: 1.5px solid var(--bdr) !important;
+      border-radius: 10px !important;
+      font-weight: 600 !important;
+    }
+    .btn-outline:hover {
+      border-color: var(--accent) !important;
+      color: var(--accent) !important;
+      background: var(--accent-l) !important;
+    }
+
+    /* Login button keeps brand gradient feel */
+    .l-btn {
+      background: linear-gradient(135deg, var(--Pd), var(--P)) !important;
+      border-radius: 12px !important;
+      box-shadow: 0 4px 14px rgba(15, 23, 42, .2) !important;
+    }
+
+    /* Sidebar — clean white, soft active state */
+    .sb, #sb {
+      background: var(--sb) !important;
+      border-right: 1px solid var(--bdr) !important;
+      box-shadow: none !important;
+    }
+    .nv {
+      border-radius: 10px !important;
+      margin: 2px 10px !important;
+      font-weight: 500 !important;
+      color: var(--sbt2) !important;
+      transition: background .15s, color .15s !important;
+    }
+    .nv:hover {
+      background: var(--sur3) !important;
+      color: var(--sbt) !important;
+    }
+    .nv.on, .nv.active {
+      background: var(--accent-l) !important;
+      color: var(--accent-d) !important;
+      font-weight: 600 !important;
+    }
+    .nv.on i, .nv.active i {
+      color: var(--accent) !important;
+    }
+
+    /* Topbar */
+    .tb, #tb, .topbar {
+      background: var(--sur) !important;
+      border-bottom: 1px solid var(--bdr) !important;
+      height: var(--tbh) !important;
+      box-shadow: none !important;
+    }
+
+    /* Content padding — Prompt generous spacing */
+    #content, .content {
+      padding: 24px 28px !important;
+      max-width: 1400px;
+    }
+    @media (max-width: 768px) {
+      #content, .content {
+        padding: 14px 14px 90px !important;
+      }
+    }
+
+    /* Quick action tiles — softer */
+    .qa-tile {
+      background: var(--sur) !important;
+      border: 1px solid var(--bdr) !important;
+      border-radius: 14px !important;
+      box-shadow: var(--shad) !important;
+      padding: 14px 8px !important;
+      transition: transform .15s, box-shadow .15s !important;
+    }
+    .qa-tile:hover {
+      transform: translateY(-2px);
+      box-shadow: var(--shad2) !important;
+    }
+    .qa-icon {
+      width: 44px !important;
+      height: 44px !important;
+      border-radius: 12px !important;
+      margin: 0 auto 8px !important;
+    }
+    .qa-lbl {
+      font-size: 12px !important;
+      font-weight: 600 !important;
+      color: var(--tx2) !important;
+    }
+
+    /* Module headers */
+    .mod-title {
+      font-size: 20px !important;
+      font-weight: 700 !important;
+      letter-spacing: -0.02em !important;
+      color: var(--tx) !important;
+    }
+    .mod-sub {
+      font-size: 13px !important;
+      color: var(--tx3) !important;
+      font-weight: 400 !important;
+    }
+
+    /* Inputs — Prompt clean */
+    input, select, textarea {
+      border-radius: 10px !important;
+      border: 1.5px solid var(--bdr) !important;
+      background: var(--sur) !important;
+      transition: border-color .15s, box-shadow .15s !important;
+    }
+    input:focus, select:focus, textarea:focus {
+      border-color: var(--accent) !important;
+      box-shadow: 0 0 0 3px var(--accent-l) !important;
+      outline: none !important;
+    }
+
+    /* Tables */
+    table {
+      border-collapse: separate !important;
+      border-spacing: 0 !important;
+    }
+    thead th {
+      background: var(--sur2) !important;
+      font-weight: 600 !important;
+      font-size: 12px !important;
+      color: var(--tx3) !important;
+      text-transform: uppercase !important;
+      letter-spacing: .04em !important;
+      border-bottom: 1px solid var(--bdr) !important;
+    }
+    tbody td {
+      border-bottom: 1px solid var(--bdr) !important;
+      padding: 12px 14px !important;
+    }
+    tbody tr:hover {
+      background: var(--sur2) !important;
+    }
+
+    /* Progress bars soft */
+    .progress, [class*="progress-bar"] {
+      border-radius: 999px !important;
+      height: 6px !important;
+      background: var(--sur3) !important;
+    }
+
+    /* Mobile bottom nav — Prompt clean */
+    .mob-nav {
+      background: var(--sur) !important;
+      border-top: 1px solid var(--bdr) !important;
+      box-shadow: 0 -4px 20px rgba(15, 23, 42, .06) !important;
+    }
+    .mob-nav-item.active {
+      color: var(--accent) !important;
+    }
+    .mob-nav-item.active .mob-nav-pill {
+      background: var(--accent-l) !important;
+    }
+
+
+    .btn-checkin {
+      background: var(--accent) !important;
+      color: #fff !important;
+      border-radius: 12px !important;
+      font-weight: 650 !important;
+      box-shadow: 0 4px 14px rgba(37, 99, 235, .3) !important;
+    }
+    .btn-checkin:hover:not(:disabled) {
+      background: var(--accent-d) !important;
+    }
+    .btn-checkin.out {
+      background: var(--O) !important;
+      box-shadow: 0 4px 14px rgba(245, 158, 11, .3) !important;
+    }
+
+    /* Chart wrappers */
+    .chart-wrap {
+      padding: 20px !important;
+    }
+    .chart-title {
+      font-size: 15px !important;
+      font-weight: 650 !important;
+      color: var(--tx) !important;
+    }
+    .chart-sub {
+      font-size: 12px !important;
+      color: var(--tx3) !important;
+    }
+
+    /* Grid gaps consistent */
+    .krow {
+      gap: 16px !important;
+    }
+
+    /* Badge / chips soft */
+    .badge, .chip, [class*="badge"] {
+      border-radius: 8px !important;
+      font-weight: 600 !important;
+    }
+
 
     /* ══════════════════════════════════════════════════════════════════════
    RESET
@@ -150,7 +429,7 @@
     }
 
     body {
-      font-family: 'Plus Jakarta Sans', system-ui, -apple-system, sans-serif;
+      font-family: 'Be Vietnam Pro', 'Plus Jakarta Sans', system-ui, -apple-system, sans-serif;
       background: var(--bg);
       color: var(--tx);
       overflow: hidden;
@@ -326,9 +605,9 @@
       align-items: center;
       justify-content: center;
       background:
-        radial-gradient(ellipse at 80% 10%, rgba(183, 110, 121, .25) 0%, transparent 50%),
+        radial-gradient(ellipse at 80% 10%, rgba(59, 130, 246, .25) 0%, transparent 50%),
         radial-gradient(ellipse at 10% 90%, rgba(17, 17, 17, .5) 0%, transparent 60%),
-        linear-gradient(135deg, #0A0A0A 0%, #1A1A1A 100%);
+        linear-gradient(135deg, #0F172A 0%, #1E293B 55%, #334155 100%);
       overflow: hidden;
     }
 
@@ -26506,17 +26785,17 @@
         <span class="mob-nav-pill"><i class="fas fa-house"></i></span>
         <span>Home</span>
       </button>
-            <button class="mob-nav-item" id="mbn-attend" onclick="_mbNav('attend')" aria-label="Attend">
-        <span class="mob-nav-pill"><i class="fas fa-clock"></i></span>
-        <span>Attend</span>
-      </button>
-            <button class="mob-nav-item" id="mbn-deleg" onclick="_mbNav('deleg')" aria-label="Delegate">
-        <span class="mob-nav-pill"><i class="fas fa-people-arrows"></i></span>
-        <span>Delegate</span>
-      </button>
       <button class="mob-nav-item" id="mbn-check" onclick="_mbNav('check')" aria-label="Tasks">
         <span class="mob-nav-pill"><i class="fas fa-list-check"></i></span>
         <span>Tasks</span>
+      </button>
+      <button class="mob-nav-item" id="mbn-attend" onclick="_mbNav('attend')" aria-label="Attend">
+        <span class="mob-nav-pill"><i class="fas fa-clock"></i></span>
+        <span>Attend</span>
+      </button>
+      <button class="mob-nav-item" id="mbn-deleg" onclick="_mbNav('deleg')" aria-label="Delegate">
+        <span class="mob-nav-pill"><i class="fas fa-people-arrows"></i></span>
+        <span>Delegate</span>
       </button>
       <button class="mob-nav-item" id="mbn-leave" onclick="_mbNav('leave')" aria-label="Leave">
         <span class="mob-nav-pill"><i class="fas fa-umbrella-beach"></i></span>
