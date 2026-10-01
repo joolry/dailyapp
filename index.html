@@ -12335,6 +12335,48 @@
   }
 }
 
+
+    .so-ov {
+      display: none;
+      position: fixed;
+      inset: 0;
+      z-index: 9500;
+      background: rgba(15, 23, 42, .55);
+      backdrop-filter: blur(6px);
+      -webkit-backdrop-filter: blur(6px);
+      align-items: center;
+      justify-content: center;
+      padding: 20px;
+    }
+    .so-ov.on {
+      display: flex !important;
+    }
+    .so-box {
+      background: #fff;
+      border-radius: 20px;
+      padding: 24px 22px;
+      width: 100%;
+      max-width: 360px;
+      box-shadow: 0 24px 64px rgba(15, 23, 42, .25);
+      animation: soPop .22s ease;
+    }
+    @keyframes soPop {
+      from { opacity: 0; transform: scale(.94) translateY(8px); }
+      to { opacity: 1; transform: scale(1) translateY(0); }
+    }
+    .so-btns {
+      display: flex;
+      gap: 10px;
+      margin-top: 18px;
+    }
+    .so-btns .btn {
+      flex: 1;
+      min-height: 44px;
+      border-radius: 12px;
+      font-weight: 700;
+    }
+    body.dark .so-box { background: #1E293B; }
+
 </style>
 </head>
 
@@ -15132,10 +15174,13 @@
               {ico: 'fa-user-clock', lbl: 'Attend', view: 'attend', c1: '#1D4ED8', c2: '#60A5FA', all: true},
               {ico: 'fa-umbrella-beach', lbl: 'Leave', view: 'leave', c1: '#DC2626', c2: '#F87171', all: true},
               {ico: 'fa-calendar-days', lbl: 'Holidays', view: 'holcal', c1: '#065F46', c2: '#34D399', all: true},
-              {ico: 'fa-bullhorn', lbl: 'Announce', view: 'ann', c1: '#D97706', c2: '#FCD34D', mgr: true},
+              {ico: 'fa-bolt', lbl: 'Activity', view: 'feed', c1: '#EA580C', c2: '#FB923C', all: true},
+              {ico: 'fa-user', lbl: 'Profile', view: 'profile', c1: '#475569', c2: '#94A3B8', all: true},
+              {ico: 'fa-bullhorn', lbl: 'Announce', view: 'ann', c1: '#D97706', c2: '#FCD34D', all: true},
               {ico: 'fa-chart-line', lbl: 'Analytics', view: 'clana', c1: '#9D174D', c2: '#F472B6', mgr: true},
               {ico: 'fa-address-card', lbl: 'Directory', view: 'empdir', c1: '#92400E', c2: '#F59E0B', mgr: true},
-              {ico: 'fa-file-invoice-dollar', lbl: 'Salary', view: 'payroll', c1: '#111111', c2: '#4A4A4A', mgr: true}
+              {ico: 'fa-file-invoice-dollar', lbl: 'Salary', view: 'payroll', c1: '#111111', c2: '#4A4A4A', mgr: true},
+              {ico: 'fa-table-columns', lbl: 'EM Board', view: 'em', c1: '#0E7490', c2: '#22D3EE', mgr: true}
             ].filter(function (a) { return a.all || (a.mgr && isMgr); });
             return '<div class="dash-qa-grid" id="dashQuickAct">' +
               tiles.map(function (a) {
@@ -23414,12 +23459,45 @@
        SIGN-OUT OVERLAY HELPERS
     ══════════════════════════════════════════════════════════════════════ */
     function _soShow() {
+      try {
+        var u = (typeof _safeU === 'function') ? _safeU() : (_U || {});
+        var sbNm = document.getElementById('sbName');
+        var sbRl = document.getElementById('sbRole');
+        var nm = (u.name && String(u.name).trim() && u.name !== 'User' && u.name !== 'Staff')
+          ? u.name
+          : (sbNm && sbNm.textContent && sbNm.textContent.trim() && sbNm.textContent !== 'Joolry Staff' ? sbNm.textContent.trim() : '');
+        if (!nm) nm = (u.email || 'Staff Member');
+        var role = (u.role || 'STAFF');
+        var dept = (u.dept || '');
+        var rl = dept ? (role + ' · ' + dept) : role;
+        if (sbRl && sbRl.textContent && sbRl.textContent.trim() && (!u.role || !u.dept)) {
+          rl = sbRl.textContent.trim();
+        }
+        var nEl = document.getElementById('soUserName');
+        var rEl = document.getElementById('soUserDept');
+        if (nEl) nEl.textContent = nm;
+        if (rEl) rEl.textContent = rl;
+        // Avatar initial
+        var av = document.querySelector('#soOv .so-box [style*="border-radius:50%"]');
+        if (av) {
+          var ini = (nm && nm !== 'Staff Member') ? nm.replace(/[^A-Za-z ]/g,'').split(' ').filter(Boolean).map(function(w){return w[0];}).slice(0,2).join('').toUpperCase() : '?';
+          av.innerHTML = ini || '<i class="fas fa-user" style="font-size:15px"></i>';
+        }
+      } catch (e) { console.warn('soShow', e); }
       var ov = document.getElementById('soOv');
-      if (ov) ov.style.display = 'flex';
+      if (ov) {
+        ov.style.display = 'flex';
+        ov.classList.add('on');
+      }
+      document.body.style.overflow = 'hidden';
     }
     function _soHide() {
       var ov = document.getElementById('soOv');
-      if (ov) ov.style.display = 'none';
+      if (ov) {
+        ov.classList.remove('on');
+        ov.style.display = 'none';
+      }
+      document.body.style.overflow = '';
     }
 
     /* ══════════════════════════════════════════════════════════════════════
