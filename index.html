@@ -11,7 +11,9 @@
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
   <meta name="apple-mobile-web-app-title" content="Joolry Daily">
   <link rel="manifest" href="manifest.json">
-  <link rel="apple-touch-icon" href="icon-180.png">
+  <link rel="icon" type="image/png" href="https://joolry.in/cdn/shop/files/Joolry_Logo_160x.png?v=1661766461">
+  <link rel="apple-touch-icon" href="https://joolry.in/cdn/shop/files/Joolry_Logo_160x.png?v=1661766461">
+  <link rel="shortcut icon" href="https://joolry.in/cdn/shop/files/Joolry_Logo_160x.png?v=1661766461">
   <title>Joolry Daily</title>
 
   <!-- External Assets -->
@@ -9048,6 +9050,27 @@
       }
     }
 
+    
+    /* ── Tablet (768–1024): hybrid desk layout ─────────────────────────── */
+    @media (min-width: 768px) and (max-width: 1024px) {
+      :root { --sbw: 72px; }
+      .krow { grid-template-columns: repeat(2, 1fr) !important; }
+      #dashQuickAct { grid-template-columns: repeat(4, 1fr) !important; }
+      .chart-wrap { min-height: 220px; }
+      .mod-head { flex-wrap: wrap; gap: 10px; }
+      .pr-card-grid { grid-template-columns: repeat(2, 1fr) !important; }
+    }
+
+    /* ── Large mobile / small tablet ───────────────────────────────────── */
+    @media (max-width: 767px) {
+      #dashQuickAct { grid-template-columns: repeat(4, 1fr) !important; gap: 8px !important; }
+      .qa-tile { padding: 12px 4px !important; min-height: 72px; }
+      .qa-lbl { font-size: 10px !important; line-height: 1.2; }
+      .krow { grid-template-columns: repeat(2, 1fr) !important; gap: 10px !important; }
+      .att-punch-card { flex-direction: column; align-items: stretch !important; }
+      .att-punch-card .btn-checkin { width: 100%; justify-content: center; }
+    }
+
     /* ── Analytics: single column on mobile ──────────────────────────────── */
     @media (max-width: 640px) {
       .ana-charts-grid {
@@ -13837,28 +13860,33 @@
           [1, 2, 3, 4].map(function () {return '<div class="sk sk-h6" style="border-radius:14px"></div>';}).join('') +
           '</div>' +
 
-          // ── Quick action tiles (Paytm-style: vibrant colors, bold icons) ──
-          // Simple onclick only — no inline event handlers that break mobile parsing
-          '<div style="display:grid;grid-template-columns:repeat(' + (mob ? '4' : '4') + ',1fr);gap:' + (mob ? '10px' : '12px') + ';margin-bottom:20px" id="dashQuickAct">' +
-          [
-            {ico: 'fa-list-check', lbl: 'Tasks', view: 'check', c1: '#0F766E', c2: '#14B8A6'},
-            {ico: 'fa-diagram-project', lbl: 'Delegate', view: 'deleg', c1: '#7C3AED', c2: '#A78BFA'},
-            {ico: 'fa-user-clock', lbl: 'Attend', view: 'attend', c1: '#1D4ED8', c2: '#60A5FA'},
-            {ico: 'fa-umbrella-beach', lbl: 'Leave', view: 'leave', c1: '#DC2626', c2: '#F87171'},
-            {ico: 'fa-bullhorn', lbl: 'Announce', view: 'ann', c1: '#D97706', c2: '#FCD34D'},
-            {ico: 'fa-calendar-days', lbl: 'Holidays', view: 'holcal', c1: '#065F46', c2: '#34D399'},
-            {ico: 'fa-chart-line', lbl: 'Analytics', view: 'clana', c1: '#9D174D', c2: '#F472B6'},
-            {ico: 'fa-address-card', lbl: 'Directory', view: 'empdir', c1: '#92400E', c2: '#F59E0B'}
-          ].map(function (a) {
-            return '<button class="qa-tile" onclick="_loadV(\'' + a.view + '\')">' +
-              '<div class="qa-icon" style="background:linear-gradient(135deg,' + a.c1 + ',' + a.c2 + ')">' +
-              '<i class="fas ' + a.ico + '"></i></div>' +
-              '<span class="qa-lbl">' + a.lbl + '</span>' +
-              '</button>';
-          }).join('') +
-          '</div>' +
+          // ── Quick action tiles — role-aware (staff vs manager)
+          (function () {
+            var isMgr = (typeof _isManager === 'function' && _isManager());
+            var tiles = [
+              {ico: 'fa-list-check', lbl: 'Tasks', view: 'check', c1: '#0F766E', c2: '#14B8A6', all: true},
+              {ico: 'fa-diagram-project', lbl: 'Delegate', view: 'deleg', c1: '#7C3AED', c2: '#A78BFA', all: true},
+              {ico: 'fa-user-clock', lbl: 'Attend', view: 'attend', c1: '#1D4ED8', c2: '#60A5FA', all: true},
+              {ico: 'fa-umbrella-beach', lbl: 'Leave', view: 'leave', c1: '#DC2626', c2: '#F87171', all: true},
+              {ico: 'fa-calendar-days', lbl: 'Holidays', view: 'holcal', c1: '#065F46', c2: '#34D399', all: true},
+              {ico: 'fa-bullhorn', lbl: 'Announce', view: 'ann', c1: '#D97706', c2: '#FCD34D', mgr: true},
+              {ico: 'fa-chart-line', lbl: 'Analytics', view: 'clana', c1: '#9D174D', c2: '#F472B6', mgr: true},
+              {ico: 'fa-address-card', lbl: 'Directory', view: 'empdir', c1: '#92400E', c2: '#F59E0B', mgr: true},
+              {ico: 'fa-file-invoice-dollar', lbl: 'Salary', view: 'payroll', c1: '#111111', c2: '#4A4A4A', mgr: true}
+            ].filter(function (a) { return a.all || (a.mgr && isMgr); });
+            var cols = mob ? Math.min(4, tiles.length) : Math.min(tiles.length, 5);
+            return '<div style="display:grid;grid-template-columns:repeat(' + cols + ',1fr);gap:' + (mob ? '10px' : '12px') + ';margin-bottom:20px" id="dashQuickAct">' +
+              tiles.map(function (a) {
+                return '<button class="qa-tile" onclick="_loadV(\'' + a.view + '\')">' +
+                  '<div class="qa-icon" style="background:linear-gradient(135deg,' + a.c1 + ',' + a.c2 + ')">' +
+                  '<i class="fas ' + a.ico + '"></i></div>' +
+                  '<span class="qa-lbl">' + a.lbl + '</span>' +
+                  '</button>';
+              }).join('') +
+              '</div>';
+          })() +
 
-          // ── Charts row (desktop only; mobile shows list-style cards instead) ──
+                    // ── Charts row (desktop only; mobile shows list-style cards instead) ──
           (mob ? '' :
             '<div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-bottom:18px">' +
             '<div class="chart-wrap"><div class="chart-head"><div class="chart-title">Task Completion — Last 7 Days</div><div class="chart-sub">Daily tasks marked as done</div></div><div class="chart-inner"><canvas id="dashBarChart"></canvas></div></div>' +
@@ -13936,7 +13964,7 @@
               datasets: [{
                 data: vals,
                 backgroundColor: vals.map(function (v, i) {
-                  return i === vals.length - 1 ? 'rgba(0,95,115,.9)' : 'rgba(0,95,115,.4)';
+                  return i === vals.length - 1 ? 'rgba(17,17,17,.9)' : 'rgba(17,17,17,.35)';
                 }),
                 borderRadius: 7,
                 borderSkipped: false
@@ -24436,10 +24464,10 @@
         '<div><div class="mod-title"><i class="fas fa-file-invoice-dollar" style="color:var(--G)"></i> Salary Sheet</div>' +
         '<div class="mod-sub">Month select karo — attendance & leave ke basis pe salary tayaar hogi</div></div>' +
         '<div style="display:flex;gap:6px">' +
-        '<button class="btn btn-sm btn-outline" id="prExportBtn" onclick="_prExportCSV()" style="display:none">' +
-        '<i class="fas fa-file-csv"></i> Summary</button>' +
-        '<button class="btn btn-sm btn-outline" id="prExportDetailBtn" onclick="_prExportDetailCSV()" style="display:none">' +
-        '<i class="fas fa-table"></i> Full Detail</button>' +
+        '<button class="btn btn-sm btn-outline" id="prExportBtn" onclick="_prExportCSV()" style="display:none" title="Download summary CSV (includes Week Off counts)">' +
+        '<i class="fas fa-file-csv"></i> Export Summary</button>' +
+        '<button class="btn btn-sm btn-outline" id="prExportDetailBtn" onclick="_prExportDetailCSV()" style="display:none" title="Download day-by-day log with IN/OUT + Week Off">' +
+        '<i class="fas fa-table"></i> Export Full Detail</button>' +
         '</div>' +
         '</div>' +
 
@@ -24879,11 +24907,14 @@
 
     function _prExportCSV() {
       if (!_prData || !_prData.employees) return;
-      var head = ['Emp ID', 'Name', 'Dept', 'Month', 'Working Days', 'Present', 'Leave', 'Absent/LWP',
+      var head = ['Emp ID', 'Name', 'Dept', 'Month', 'Working Days', 'Present', 'Half Day', 'Leave', 'Absent/LWP',
+        'Week Off', 'Holidays', 'Payable Days',
         'Basic', 'HRA', 'Conv', 'Other Allow', 'Gross', 'PF', 'ESI', 'TDS', 'Other Ded', 'LWP Ded', 'Total Ded', 'Net Pay'];
       var rows = [head].concat((_prData.employees).map(function (e) {
+        var hdCount = (e.daily_log || []).filter(function (d) { return d.status === 'HD'; }).length;
         return ['"' + e.emp_id + '"', '"' + e.emp_name + '"', '"' + e.dept + '"', _prData.month,
-        e.total_working_days, e.present_days, e.leave_days, (e.absent_days + e.lwp_days),
+        e.total_working_days, e.present_days, hdCount, e.leave_days, (e.absent_days + e.lwp_days),
+        (e.week_off_days || 0), (e.holiday_days || 0), (e.payable_days || 0),
         e.basic_salary, e.hra, e.conveyance, e.other_allowances, e.gross_salary,
         e.pf_deduction, e.esi_deduction, e.tds, e.other_deductions, e.lwp_deduction,
         e.total_deductions, e.net_salary];
@@ -26475,17 +26506,17 @@
         <span class="mob-nav-pill"><i class="fas fa-house"></i></span>
         <span>Home</span>
       </button>
-      <button class="mob-nav-item" id="mbn-check" onclick="_mbNav('check')" aria-label="Tasks">
-        <span class="mob-nav-pill"><i class="fas fa-list-check"></i></span>
-        <span>Tasks</span>
-      </button>
-      <button class="mob-nav-item" id="mbn-attend" onclick="_mbNav('attend')" aria-label="Attend">
+            <button class="mob-nav-item" id="mbn-attend" onclick="_mbNav('attend')" aria-label="Attend">
         <span class="mob-nav-pill"><i class="fas fa-clock"></i></span>
         <span>Attend</span>
       </button>
-      <button class="mob-nav-item" id="mbn-deleg" onclick="_mbNav('deleg')" aria-label="Delegate">
+            <button class="mob-nav-item" id="mbn-deleg" onclick="_mbNav('deleg')" aria-label="Delegate">
         <span class="mob-nav-pill"><i class="fas fa-people-arrows"></i></span>
         <span>Delegate</span>
+      </button>
+      <button class="mob-nav-item" id="mbn-check" onclick="_mbNav('check')" aria-label="Tasks">
+        <span class="mob-nav-pill"><i class="fas fa-list-check"></i></span>
+        <span>Tasks</span>
       </button>
       <button class="mob-nav-item" id="mbn-leave" onclick="_mbNav('leave')" aria-label="Leave">
         <span class="mob-nav-pill"><i class="fas fa-umbrella-beach"></i></span>
