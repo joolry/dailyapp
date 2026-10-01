@@ -11454,7 +11454,291 @@
         width: 100%;
       }
     }
-  </style>
+  
+/* ═══════════════════════════════════════════════════════════════════════════
+   JOOLRY DAILY — DEFINITIVE RESPONSIVE + RICH UI LAYER (v1.2)
+   Loads last → wins over older rules. Devices: phone / tablet / desktop
+═══════════════════════════════════════════════════════════════════════════ */
+
+/* ── App shell ─────────────────────────────────────────────────────────── */
+#sApp {
+  display: flex !important;
+  flex-direction: row !important;
+  height: 100vh !important;
+  height: 100dvh !important;
+  width: 100% !important;
+  overflow: hidden !important;
+  background: var(--bg) !important;
+}
+.sb {
+  width: var(--sbw, 260px) !important;
+  min-width: var(--sbw, 260px) !important;
+  max-width: var(--sbw, 260px) !important;
+  flex-shrink: 0 !important;
+  height: 100% !important;
+  overflow-y: auto !important;
+  overflow-x: hidden !important;
+  background: var(--sb) !important;
+  border-right: 1px solid var(--bdr) !important;
+  z-index: var(--z-sb, 100) !important;
+}
+.main-area, .app-main, #mainWrap {
+  flex: 1 1 auto !important;
+  min-width: 0 !important;
+  display: flex !important;
+  flex-direction: column !important;
+  height: 100% !important;
+  overflow: hidden !important;
+}
+#content {
+  flex: 1 1 auto !important;
+  overflow-y: auto !important;
+  overflow-x: hidden !important;
+  -webkit-overflow-scrolling: touch !important;
+  padding: 24px 28px 32px !important;
+  background: var(--bg) !important;
+  max-width: 100% !important;
+}
+
+/* ── Dashboard grids ───────────────────────────────────────────────────── */
+.dash-qa-grid,
+#dashQuickAct {
+  display: grid !important;
+  grid-template-columns: repeat(5, minmax(0, 1fr)) !important;
+  gap: 14px !important;
+  margin-bottom: 22px !important;
+  width: 100% !important;
+}
+.dash-qa-grid .qa-tile,
+#dashQuickAct .qa-tile {
+  width: 100% !important;
+  min-width: 0 !important;
+  min-height: 100px !important;
+  padding: 16px 10px !important;
+  display: flex !important;
+  flex-direction: column !important;
+  align-items: center !important;
+  justify-content: center !important;
+  background: var(--sur) !important;
+  border: 1px solid var(--bdr) !important;
+  border-radius: 14px !important;
+  box-shadow: var(--shad) !important;
+  cursor: pointer !important;
+}
+.dash-qa-grid .qa-icon,
+#dashQuickAct .qa-icon {
+  width: 48px !important;
+  height: 48px !important;
+  border-radius: 14px !important;
+  display: flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  color: #fff !important;
+  font-size: 18px !important;
+  margin: 0 auto 10px !important;
+  box-shadow: 0 4px 12px rgba(15, 23, 42, .12) !important;
+}
+.dash-qa-grid .qa-lbl,
+#dashQuickAct .qa-lbl {
+  font-size: 12.5px !important;
+  font-weight: 600 !important;
+  color: var(--tx2) !important;
+  text-align: center !important;
+  line-height: 1.25 !important;
+}
+
+.krow,
+#dashKrow {
+  display: grid !important;
+  grid-template-columns: repeat(4, minmax(0, 1fr)) !important;
+  gap: 16px !important;
+  margin-bottom: 22px !important;
+  width: 100% !important;
+}
+.krow .kpi,
+#dashKrow .kpi {
+  min-width: 0 !important;
+  min-height: 132px !important;
+  padding: 20px 18px !important;
+  background: var(--sur) !important;
+  border: 1px solid var(--bdr) !important;
+  border-radius: 16px !important;
+  box-shadow: var(--shad) !important;
+}
+
+/* Charts row — force 2 col desktop */
+#content > div[style*="grid-template-columns:1fr 1fr"],
+.dash-charts-row {
+  display: grid !important;
+  grid-template-columns: 1fr 1fr !important;
+  gap: 16px !important;
+  margin-bottom: 18px !important;
+  width: 100% !important;
+}
+.chart-wrap {
+  min-width: 0 !important;
+  min-height: 300px !important;
+  padding: 20px !important;
+  background: var(--sur) !important;
+  border: 1px solid var(--bdr) !important;
+  border-radius: 16px !important;
+  box-shadow: var(--shad) !important;
+}
+
+/* Bottom 3 cards */
+#content > div[style*="grid-template-columns:1fr 1fr 1fr"] {
+  display: grid !important;
+  grid-template-columns: repeat(3, minmax(0, 1fr)) !important;
+  gap: 16px !important;
+  width: 100% !important;
+}
+
+/* Punch card full width */
+.att-punch-card {
+  width: 100% !important;
+  box-sizing: border-box !important;
+}
+
+/* ── TABLET (768–1099) ─────────────────────────────────────────────────── */
+@media (max-width: 1099px) and (min-width: 768px) {
+  :root { --sbw: 220px; }
+  #content { padding: 18px 18px 28px !important; }
+  .dash-qa-grid, #dashQuickAct {
+    grid-template-columns: repeat(4, minmax(0, 1fr)) !important;
+    gap: 12px !important;
+  }
+  .krow, #dashKrow {
+    grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+  }
+  #content > div[style*="grid-template-columns:1fr 1fr 1fr"] {
+    grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+  }
+}
+
+/* ── MOBILE (≤767) ─────────────────────────────────────────────────────── */
+@media (max-width: 767px) {
+  #sApp { flex-direction: row !important; }
+
+  /* Sidebar off-canvas */
+  .sb {
+    position: fixed !important;
+    left: 0 !important;
+    top: 0 !important;
+    bottom: 0 !important;
+    width: min(280px, 86vw) !important;
+    min-width: 0 !important;
+    max-width: min(280px, 86vw) !important;
+    transform: translateX(-105%) !important;
+    transition: transform .28s cubic-bezier(.4,0,.2,1) !important;
+    box-shadow: var(--shad3) !important;
+    z-index: 300 !important;
+  }
+  body.sb-open .sb,
+  #sApp.sb-open .sb,
+  .sb.open {
+    transform: translateX(0) !important;
+  }
+
+  #content {
+    padding: 12px 12px 96px !important;
+    width: 100% !important;
+  }
+
+  .dash-qa-grid, #dashQuickAct {
+    grid-template-columns: repeat(3, minmax(0, 1fr)) !important;
+    gap: 10px !important;
+  }
+  .dash-qa-grid .qa-tile, #dashQuickAct .qa-tile {
+    min-height: 88px !important;
+    padding: 12px 6px !important;
+  }
+  .dash-qa-grid .qa-icon, #dashQuickAct .qa-icon {
+    width: 40px !important;
+    height: 40px !important;
+    font-size: 15px !important;
+    margin-bottom: 6px !important;
+  }
+  .dash-qa-grid .qa-lbl, #dashQuickAct .qa-lbl {
+    font-size: 11px !important;
+  }
+
+  .krow, #dashKrow {
+    grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+    gap: 10px !important;
+  }
+  .krow .kpi, #dashKrow .kpi {
+    min-height: 110px !important;
+    padding: 14px 12px !important;
+  }
+  .kpi-val { font-size: 24px !important; }
+
+  /* Stack charts */
+  #content > div[style*="grid-template-columns:1fr 1fr"],
+  .dash-charts-row {
+    grid-template-columns: 1fr !important;
+  }
+  .chart-wrap { min-height: 240px !important; }
+
+  #content > div[style*="grid-template-columns:1fr 1fr 1fr"] {
+    grid-template-columns: 1fr !important;
+  }
+
+  .att-punch-card {
+    flex-direction: column !important;
+    align-items: stretch !important;
+    gap: 12px !important;
+    padding: 16px !important;
+  }
+  .att-punch-card .btn-checkin,
+  .att-punch-card button {
+    width: 100% !important;
+    justify-content: center !important;
+  }
+
+  .mod-head {
+    flex-direction: column !important;
+    align-items: flex-start !important;
+    gap: 10px !important;
+  }
+
+  /* Hide desktop-only chrome bits if needed */
+  .tb-search { max-width: 140px !important; }
+}
+
+/* ── SMALL PHONE (≤400) ────────────────────────────────────────────────── */
+@media (max-width: 400px) {
+  .dash-qa-grid, #dashQuickAct {
+    grid-template-columns: repeat(3, minmax(0, 1fr)) !important;
+    gap: 8px !important;
+  }
+  #content { padding: 10px 10px 96px !important; }
+}
+
+/* ── Tables horizontal scroll on small screens ─────────────────────────── */
+@media (max-width: 900px) {
+  .tbl-wrap, .table-scroll, .muster-wrap {
+    overflow-x: auto !important;
+    -webkit-overflow-scrolling: touch !important;
+  }
+}
+
+/* ── Rich visual polish ────────────────────────────────────────────────── */
+.qa-tile:active { transform: scale(.97) !important; }
+.kpi-ico {
+  box-shadow: 0 2px 8px rgba(15, 23, 42, .06) !important;
+}
+.btn-checkin {
+  min-height: 44px !important;
+  padding: 0 22px !important;
+  font-size: 14px !important;
+  border-radius: 12px !important;
+}
+.card, .chart-wrap, .kpi {
+  transition: box-shadow .2s ease, transform .15s ease !important;
+}
+
+
+</style>
 </head>
 
 <body>
@@ -14269,7 +14553,7 @@
 
                     // ── Charts row (desktop only; mobile shows list-style cards instead) ──
           (mob ? '' :
-            '<div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-bottom:18px">' +
+            '<div class="dash-charts-row" style="display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-bottom:18px">' +
             '<div class="chart-wrap"><div class="chart-head"><div class="chart-title">Task Completion — Last 7 Days</div><div class="chart-sub">Daily tasks marked as done</div></div><div class="chart-inner"><canvas id="dashBarChart"></canvas></div></div>' +
             '<div class="chart-wrap"><div class="chart-head" style="display:flex;align-items:center;justify-content:space-between"><div><div class="chart-title">Task Status</div><div class="chart-sub">Today\'s breakdown</div></div></div><div class="chart-inner"><canvas id="dashDoughChart"></canvas></div></div>' +
             '</div>'
