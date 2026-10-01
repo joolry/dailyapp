@@ -1,5 +1,5 @@
 // ── WhatsApp API Credentials (global — must be at top) ──────────────────────
-var WA_API_KEY = '01de01ec7d489783060e2fdc535a87ca5e963b7baba7e95ff3';
+var WA_API_KEY = 'f6a1a1229eef6fb4927df1fae50a1f3c27fb8fea0ec2de147d';
 var WA_BASIC_AUTH = 'am9vbHJ5Okpvb2xyeUBAMjAyNg==';
 
 
