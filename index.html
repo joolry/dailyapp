@@ -11738,6 +11738,287 @@
 }
 
 
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   NATIVE APP MOBILE LOOK — Prompt home-app inspired (≤767px)
+═══════════════════════════════════════════════════════════════════════════ */
+@media (max-width: 767px) {
+
+  /* Safe areas (notch / home indicator) */
+  #sApp {
+    padding-top: env(safe-area-inset-top, 0) !important;
+  }
+
+  /* ── Topbar = native app header ── */
+  .tb, #tb, .topbar {
+    height: auto !important;
+    min-height: 56px !important;
+    padding: 10px 14px 12px !important;
+    padding-top: max(10px, env(safe-area-inset-top, 0px)) !important;
+    background: #fff !important;
+    border-bottom: none !important;
+    box-shadow: 0 1px 0 rgba(15, 23, 42, .06) !important;
+    position: sticky !important;
+    top: 0 !important;
+    z-index: 50 !important;
+  }
+  .tb-left {
+    gap: 10px !important;
+    align-items: center !important;
+  }
+  .tb-title {
+    font-size: 20px !important;
+    font-weight: 800 !important;
+    letter-spacing: -0.03em !important;
+    color: #0F172A !important;
+    line-height: 1.2 !important;
+  }
+  .tb-breadcrumb, #tbDate {
+    font-size: 11px !important;
+    color: #94A3B8 !important;
+    font-weight: 500 !important;
+  }
+  .ico-btn.ham, #hamBtn {
+    width: 40px !important;
+    height: 40px !important;
+    border-radius: 12px !important;
+    background: #F1F5F9 !important;
+    border: none !important;
+    color: #334155 !important;
+    font-size: 16px !important;
+  }
+  .tb-actions {
+    gap: 6px !important;
+  }
+  .tb-ico, .tb-actions .ico-btn {
+    width: 40px !important;
+    height: 40px !important;
+    border-radius: 12px !important;
+    background: #F1F5F9 !important;
+    border: none !important;
+  }
+  /* Search as pill (Prompt style) */
+  .tb-search, .search-wrap, #globalSearch, input[type="search"] {
+    border-radius: 999px !important;
+    background: #F1F5F9 !important;
+    border: none !important;
+    height: 40px !important;
+    font-size: 13px !important;
+    padding: 0 14px 0 36px !important;
+  }
+
+  /* Content — airy native */
+  #content {
+    padding: 16px 16px calc(88px + env(safe-area-inset-bottom, 0px)) !important;
+    background: #F8FAFC !important;
+  }
+
+  /* Greeting — big native title */
+  #content h1, .dash-greet h1, .dash-hello {
+    font-size: 26px !important;
+    font-weight: 800 !important;
+    letter-spacing: -0.04em !important;
+    color: #0F172A !important;
+    margin-bottom: 4px !important;
+  }
+
+  /* ── Punch card — premium floating ── */
+  .att-punch-card {
+    background: #fff !important;
+    border: none !important;
+    border-radius: 20px !important;
+    box-shadow: 0 4px 24px rgba(15, 23, 42, .08) !important;
+    padding: 18px 18px !important;
+    margin-bottom: 16px !important;
+  }
+  .btn-checkin {
+    height: 48px !important;
+    border-radius: 14px !important;
+    font-size: 15px !important;
+    font-weight: 700 !important;
+    letter-spacing: -0.01em !important;
+    box-shadow: 0 6px 20px rgba(37, 99, 235, .35) !important;
+  }
+
+  /* ── KPI — soft app cards ── */
+  .krow, #dashKrow {
+    gap: 12px !important;
+  }
+  .krow .kpi, #dashKrow .kpi {
+    background: #fff !important;
+    border: none !important;
+    border-radius: 18px !important;
+    box-shadow: 0 2px 12px rgba(15, 23, 42, .06) !important;
+    padding: 16px 14px !important;
+    min-height: 118px !important;
+  }
+  .kpi-val {
+    font-size: 26px !important;
+    font-weight: 800 !important;
+    letter-spacing: -0.04em !important;
+  }
+  .kpi-lbl {
+    font-size: 11px !important;
+    font-weight: 500 !important;
+    color: #94A3B8 !important;
+  }
+  .kpi-ico {
+    width: 40px !important;
+    height: 40px !important;
+    border-radius: 12px !important;
+  }
+
+  /* ── Quick tiles — app icon grid ── */
+  .dash-qa-grid, #dashQuickAct {
+    grid-template-columns: repeat(3, minmax(0, 1fr)) !important;
+    gap: 12px !important;
+  }
+  .dash-qa-grid .qa-tile, #dashQuickAct .qa-tile {
+    background: #fff !important;
+    border: none !important;
+    border-radius: 18px !important;
+    box-shadow: 0 2px 12px rgba(15, 23, 42, .06) !important;
+    min-height: 96px !important;
+    padding: 14px 8px !important;
+  }
+  .dash-qa-grid .qa-icon, #dashQuickAct .qa-icon {
+    width: 44px !important;
+    height: 44px !important;
+    border-radius: 14px !important;
+    box-shadow: 0 6px 16px rgba(15, 23, 42, .15) !important;
+  }
+  .dash-qa-grid .qa-lbl, #dashQuickAct .qa-lbl {
+    font-size: 11.5px !important;
+    font-weight: 600 !important;
+    color: #475569 !important;
+  }
+
+  /* Cards list style */
+  .card, .chart-wrap {
+    background: #fff !important;
+    border: none !important;
+    border-radius: 18px !important;
+    box-shadow: 0 2px 12px rgba(15, 23, 42, .06) !important;
+  }
+
+  /* ── Pill chips / filters (Prompt tabs) ── */
+  .chip, .badge, .tab-btn, .ana-sel,
+  .filter-pill, [class*="pill"] {
+    border-radius: 999px !important;
+  }
+  .tab-btn, .filter-chip {
+    background: #F1F5F9 !important;
+    border: none !important;
+    padding: 8px 16px !important;
+    font-weight: 600 !important;
+    font-size: 13px !important;
+    color: #64748B !important;
+  }
+  .tab-btn.active, .filter-chip.active, .tab-btn.on {
+    background: #3B82F6 !important;
+    color: #fff !important;
+    box-shadow: 0 4px 12px rgba(59, 130, 246, .3) !important;
+  }
+
+  /* Module title */
+  .mod-title {
+    font-size: 22px !important;
+    font-weight: 800 !important;
+    letter-spacing: -0.03em !important;
+  }
+  .mod-sub {
+    font-size: 13px !important;
+    color: #94A3B8 !important;
+  }
+
+  /* ── Bottom nav — iOS / Prompt native ── */
+  .mob-nav {
+    display: flex !important;
+    position: fixed !important;
+    left: 0 !important;
+    right: 0 !important;
+    bottom: 0 !important;
+    z-index: 200 !important;
+    background: rgba(255, 255, 255, .92) !important;
+    backdrop-filter: blur(16px) saturate(180%) !important;
+    -webkit-backdrop-filter: blur(16px) saturate(180%) !important;
+    border-top: 1px solid rgba(226, 232, 240, .8) !important;
+    box-shadow: 0 -8px 32px rgba(15, 23, 42, .06) !important;
+    padding: 8px 8px calc(8px + env(safe-area-inset-bottom, 0px)) !important;
+    height: auto !important;
+  }
+  .mob-nav-inner {
+    display: flex !important;
+    width: 100% !important;
+    justify-content: space-around !important;
+    align-items: center !important;
+    max-width: 480px !important;
+    margin: 0 auto !important;
+  }
+  .mob-nav-item {
+    flex: 1 !important;
+    display: flex !important;
+    flex-direction: column !important;
+    align-items: center !important;
+    gap: 4px !important;
+    background: transparent !important;
+    border: none !important;
+    color: #94A3B8 !important;
+    font-size: 10px !important;
+    font-weight: 600 !important;
+    padding: 4px 0 !important;
+    min-width: 0 !important;
+  }
+  .mob-nav-pill {
+    width: 48px !important;
+    height: 32px !important;
+    border-radius: 16px !important;
+    display: flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+    font-size: 18px !important;
+    transition: background .2s, color .2s, transform .15s !important;
+  }
+  .mob-nav-item.active {
+    color: #3B82F6 !important;
+  }
+  .mob-nav-item.active .mob-nav-pill {
+    background: rgba(59, 130, 246, .12) !important;
+    color: #2563EB !important;
+    transform: scale(1.05);
+  }
+
+  /* Buttons full-width friendly */
+  .btn-wide, .l-btn {
+    border-radius: 14px !important;
+    height: 48px !important;
+    font-weight: 700 !important;
+  }
+
+  /* List rows — native list */
+  .list-row, .task-row, .del-row, .ann-card {
+    background: #fff !important;
+    border: none !important;
+    border-radius: 16px !important;
+    margin-bottom: 10px !important;
+    box-shadow: 0 2px 10px rgba(15, 23, 42, .05) !important;
+    padding: 14px 16px !important;
+  }
+
+  /* Hide breadcrumb noise on tiny screens */
+  .tb-breadcrumb { display: none !important; }
+}
+
+/* Extra small */
+@media (max-width: 380px) {
+  .dash-qa-grid, #dashQuickAct {
+    grid-template-columns: repeat(3, minmax(0, 1fr)) !important;
+    gap: 8px !important;
+  }
+  #content { padding-left: 12px !important; padding-right: 12px !important; }
+  .tb-title { font-size: 18px !important; }
+}
+
 </style>
 </head>
 
