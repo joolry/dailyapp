@@ -12509,6 +12509,89 @@
 .sb-brand-ver, .app-version, .portal-ver, [data-version] { display: none !important; }
 .l-sub { letter-spacing: .18em !important; text-transform: uppercase !important; }
 
+
+/* ═══ MOBILE ALIGNMENT FIX v3 — modals, forms, dashboard ═══ */
+@media (max-width: 767px) {
+  /* Modal = bottom sheet style, full width, no cut-off */
+  .modal-ov.on {
+    align-items: flex-end !important;
+    justify-content: center !important;
+    padding: 0 !important;
+  }
+  .modal-box.open {
+    width: 100% !important;
+    max-width: 100% !important;
+    max-height: 92svh !important;
+    border-radius: 20px 20px 0 0 !important;
+    margin: 0 !important;
+  }
+  .modal-title {
+    padding: 16px 16px 12px !important;
+    font-size: 16px !important;
+  }
+  .modal-body {
+    padding: 14px 16px !important;
+    overflow-x: hidden !important;
+  }
+  .modal-foot {
+    padding: 12px 16px calc(12px + env(safe-area-inset-bottom, 0px)) !important;
+    flex-direction: column-reverse !important;
+    gap: 8px !important;
+  }
+  .modal-foot .btn {
+    width: 100% !important;
+    min-height: 48px !important;
+    justify-content: center !important;
+  }
+
+  /* All form rows stack */
+  .frow, .frow-3, .frow-4 {
+    display: flex !important;
+    flex-direction: column !important;
+    gap: 12px !important;
+  }
+  .fgrp {
+    width: 100% !important;
+    min-width: 0 !important;
+  }
+  .fgrp input, .fgrp select, .fgrp textarea {
+    width: 100% !important;
+    max-width: 100% !important;
+    box-sizing: border-box !important;
+    min-height: 44px !important;
+    font-size: 16px !important;
+  }
+
+  /* Dashboard spacing — content not hidden under bottom nav */
+  #content {
+    padding: 12px 14px calc(110px + env(safe-area-inset-bottom, 0px)) !important;
+  }
+  .krow, #dashKrow {
+    display: grid !important;
+    grid-template-columns: 1fr 1fr !important;
+    gap: 10px !important;
+    margin-bottom: 14px !important;
+  }
+  .krow .kpi, #dashKrow .kpi, #dashKrow .sk {
+    min-height: 100px !important;
+    border-radius: 16px !important;
+  }
+  .dash-qa-grid, #dashQuickAct {
+    display: grid !important;
+    grid-template-columns: repeat(3, minmax(0, 1fr)) !important;
+    gap: 10px !important;
+    margin-bottom: 16px !important;
+  }
+  .att-punch-card {
+    margin-bottom: 14px !important;
+  }
+
+  /* Sign-out box */
+  .so-box {
+    max-width: calc(100vw - 32px) !important;
+  }
+}
+
 </style>
 </head>
 
@@ -18851,10 +18934,8 @@
         '<option>Sick Leave</option><option>Paid Leave</option><option>Casual Leave</option>' +
         '<option>Comp Off</option><option>WFH</option><option>LWP</option>' +
         '</select></div>' +
-        '<div class="frow">' +
-        '<div class="fgrp"><label>From <span class="req">★</span></label><input type="date" id="lvrFrom" value="' + _today() + '"></div>' +
-        '<div class="fgrp"><label>To <span class="req">★</span></label><input type="date" id="lvrTo" value="' + _today() + '"></div>' +
-        '</div>' +
+        '<div class="fgrp"><label>From <span class="req">★</span></label><input type="date" id="lvrFrom" value="' + _today() + '" style="width:100%"></div>' +
+        '<div class="fgrp"><label>To <span class="req">★</span></label><input type="date" id="lvrTo" value="' + _today() + '" style="width:100%"></div>' +
         '<div class="fgrp"><label>Reason (optional)</label><textarea id="lvrReason" placeholder="Brief reason for leave..." rows="3"></textarea></div>' +
         '<button class="btn btn-teal btn-wide" id="btnSaveLvr" onclick="_saveLeaveReq()"><i class="fas fa-paper-plane"></i> Submit Request</button>' +
         '</div>' +
@@ -21193,10 +21274,8 @@
         '</select>' +
         '</div>' +
         '</div>' +
-        '<div class="frow">' +
-        '<div class="fgrp"><label>From Date <span class="req">★</span></label><input type="date" id="mLvFrom" value="' + _today() + '"></div>' +
-        '<div class="fgrp"><label>To Date <span class="req">★</span></label><input type="date" id="mLvTo" value="' + _today() + '"></div>' +
-        '</div>' +
+        '<div class="fgrp"><label>From Date <span class="req">★</span></label><input type="date" id="mLvFrom" value="' + _today() + '" style="width:100%"></div>' +
+        '<div class="fgrp"><label>To Date <span class="req">★</span></label><input type="date" id="mLvTo" value="' + _today() + '" style="width:100%"></div>' +
         '<div class="fgrp"><label>Reason</label><textarea id="mLvReason" rows="3" placeholder="Brief reason for leave..."></textarea></div>' +
         '<div class="tip"><i class="fas fa-info-circle"></i> Your manager will be notified. Approved leaves appear in your leave calendar.</div>',
         function () {
