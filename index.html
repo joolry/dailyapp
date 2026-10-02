@@ -12430,40 +12430,51 @@
     box-sizing: border-box !important;
   }
 
-  /* Prevent content cut-off */
+  /* Prevent content cut-off — soft rules only */
   #content {
     overflow-x: hidden !important;
     overflow-y: auto !important;
     padding: 12px 12px calc(100px + env(safe-area-inset-bottom, 0px)) !important;
   }
-  #content * {
+  #content img, #content canvas {
     max-width: 100% !important;
-    box-sizing: border-box !important;
-  }
-  #content img, #content canvas, #content svg {
-    max-width: 100% !important;
-    height: auto !important;
-  }
-  /* Inline grids that overflow */
-  #content [style*="grid-template-columns"] {
-    grid-template-columns: 1fr !important;
-  }
-  #content [style*="display:flex"] {
-    flex-wrap: wrap !important;
-  }
-  /* Exception: keep punch/kpi flex sensible */
-  .att-punch-card [style*="display:flex"],
-  .kpi, .qa-tile {
-    flex-wrap: nowrap !important;
   }
   .krow, #dashKrow {
     display: grid !important;
     grid-template-columns: 1fr 1fr !important;
+    gap: 10px !important;
   }
   .dash-qa-grid, #dashQuickAct {
     display: grid !important;
     grid-template-columns: repeat(3, minmax(0, 1fr)) !important;
+    gap: 10px !important;
   }
+  /* Forms: stack fields */
+  .form-g, .form-row {
+    display: flex !important;
+    flex-direction: column !important;
+    gap: 12px !important;
+  }
+  .form-g .fgrp, .fgrp {
+    width: 100% !important;
+  }
+  /* Leave / setup date+time row can stay flex */
+  .fgrp > div[style*="display:flex"] {
+    flex-wrap: wrap !important;
+  }
+  input[type="date"], input[type="time"], input[type="text"], input[type="email"],
+  input[type="password"], select, textarea {
+    max-width: 100% !important;
+    width: 100% !important;
+    box-sizing: border-box !important;
+  }
+  /* Tables scroll inside wrapper only */
+  .tbl-wrap, .table-scroll, .muster-wrap {
+    width: 100% !important;
+    overflow-x: auto !important;
+    -webkit-overflow-scrolling: touch !important;
+  }
+
 
   /* Tables stay scrollable without page cut */
   .tbl-wrap, .table-scroll, .muster-wrap {
@@ -12494,6 +12505,10 @@
   }
 }
 
+
+.sb-brand-ver, .app-version, .portal-ver, [data-version] { display: none !important; }
+.l-sub { letter-spacing: .18em !important; text-transform: uppercase !important; }
+
 </style>
 </head>
 
@@ -12512,7 +12527,7 @@
           onerror="this.parentElement.innerHTML='<span style=\'font-size:22px;font-weight:900;color:#111111;letter-spacing:-1px\'>Joolry</span>'">
       </div>
       <div style="color:#fff;font-size:22px;font-weight:900;margin-top:16px;letter-spacing:-.3px">Joolry Daily App</div>
-      <div style="color:rgba(255,255,255,.85);font-size:14px;font-weight:700;margin-top:6px;letter-spacing:.12em">JOOLRY</div>
+      <div style="color:rgba(255,255,255,.9);font-size:13px;font-weight:700;margin-top:8px;letter-spacing:.2em">JOOLRY</div>
     </div>
     <div class="lbox">
       <div class="l-logo-wrap" id="lDeskLogo">
@@ -12521,7 +12536,7 @@
         <div class="l-logo-fallback" id="lgFallback" style="display:none">JL</div>
       </div>
       <div class="l-title">Joolry Daily App</div>
-      <div class="l-sub">JOOLRY</div>
+      <div class="l-sub" style="letter-spacing:.2em;font-weight:700">JOOLRY</div>
       <div class="l-field">
         <label>Email Address</label>
         <input type="email" id="femail" placeholder="you@joolry.co.in" autocomplete="email"
@@ -12603,7 +12618,7 @@
             onerror="this.style.display='none'">
           <div>
             <div class="sb-brand-txt">Joolry</div>
-            <div class="sb-brand-ver" style="display:none">Daily App</div>
+            <div class="sb-brand-ver" style="display:none !important"></div>
           </div>
         </div>
         <div class="sb-prof" onclick="_loadV('profile')">
@@ -16796,7 +16811,8 @@
           if (r.warn) {
             _toast('Task saved but checklist failed: ' + r.warn, 'warn');
           } else {
-            _toast('✓ Task added & checklist generated: ' + r.task_uid, 'ok');
+            var n = (r.rows !== undefined) ? r.rows : '?';
+            _toast('✓ Task added · ' + n + ' checklist rows · ' + r.task_uid, 'ok');
           }
           if (taskInp) taskInp.value = '';
           if (startInp) startInp.value = _today();
