@@ -2115,8 +2115,9 @@ function saveNewTask(taskObj, passedUser) {
   _clearSheetCache(MASTER_SHEET_ID, 'Task List');
 
   // ── Checklist rows generate karo ───────────────────
+  var genCount = 0;
   try {
-    _generateChecklistForTask({
+    genCount = _generateChecklistForTask({
       uid: uid,
       task_name: String(taskObj.task_name || ''),
       emp_id: String(taskObj.emp_id || ''),
@@ -2124,15 +2125,15 @@ function saveNewTask(taskObj, passedUser) {
       dept: String(taskObj.dept || ''),
       email: String(taskObj.email || ''),
       frequency: freq,
-      start_date: startDateOnly,  // ← sirf yyyy-MM-dd, time nahi
-      start_time: startTime       // ← time alag pass karo future use ke liye
-    });
+      start_date: startDateOnly,
+      start_time: startTime
+    }) || 0;
   } catch (ge) {
     console.warn('[saveNewTask] checklist gen failed: ' + ge.message);
-    return { success: true, task_uid: uid, warn: 'Checklist generation failed: ' + ge.message };
+    return { success: true, task_uid: uid, rows: 0, warn: 'Checklist generation failed: ' + ge.message };
   }
 
-  return { success: true, task_uid: uid };
+  return { success: true, task_uid: uid, rows: genCount };
 }
 /**
  * Generate checklist rows for a single task into Checklist.
@@ -2147,15 +2148,36 @@ function _generateChecklistForTask(t) {
   var startDt = new Date(t.start_date);
   if (isNaN(startDt.getTime())) startDt = new Date();
 
-  // Load Working Day Calendar
-  var calRows = getSheetData(MASTER_SHEET_ID, 'Working Day Calender');
-  var workDays = calRows.map(function (r) {
-    var d = r['Working Dates'];
+  // Load Working Day Calendar (try both spellings)
+  var calRows = [];
+  try { calRows = getSheetData(MASTER_SHEET_ID, 'Working Day Calender'); } catch (e1) { }
+  if (!calRows || !calRows.length) {
+    try { calRows = getSheetData(MASTER_SHEET_ID, 'Working Day Calendar'); } catch (e2) { }
+  }
+  var workDays = (calRows || []).map(function (r) {
+    var d = r['Working Dates'] || r['Working Date'] || r['Date'] || r['date'] || '';
     if (!d) return null;
-    return Utilities.formatDate(new Date(d), _getTimezone(), 'yyyy-MM-dd');
+    try {
+      return Utilities.formatDate(new Date(d), _getTimezone(), 'yyyy-MM-dd');
+    } catch (e3) {
+      var s = String(d).substring(0, 10);
+      return /^\d{4}-\d{2}-\d{2}$/.test(s) ? s : null;
+    }
   }).filter(Boolean);
 
-  if (!workDays.length) throw new Error('Working Day Calendar is empty');
+  // Fallback: if calendar empty, synthesize next 180 weekdays from start date
+  if (!workDays.length) {
+    console.warn('[_generateChecklistForTask] Working Day Calendar empty — using 180-day weekday fallback');
+    var syn = new Date(startDt.getTime());
+    for (var si = 0; si < 260 && workDays.length < 180; si++) {
+      var dow = syn.getDay();
+      if (dow !== 0 && dow !== 6) { // Mon–Fri
+        workDays.push(Utilities.formatDate(syn, _getTimezone(), 'yyyy-MM-dd'));
+      }
+      syn.setDate(syn.getDate() + 1);
+    }
+  }
+  if (!workDays.length) throw new Error('Working Day Calendar is empty and fallback failed');
 
   var lastWorkDay = new Date(workDays[workDays.length - 1]);
   var skipSundays = getConfig('SKIP_SUNDAYS', 'Yes');
@@ -2329,7 +2351,7 @@ function _generateChecklistForTask(t) {
   if (!grid.length) {
     // All rows already exist — just mark Sent
     try { updateRowByField(MASTER_SHEET_ID, 'Task List', 'Setup Task ID', t.uid, { 'Status': 'Sent' }); } catch (e) { }
-    return;
+    return 0;
   }
 
   var iPlnd = hIdx['Planned'];
@@ -2352,6 +2374,7 @@ function _generateChecklistForTask(t) {
   } catch (se) {
     console.warn('[_generateChecklistForTask] status update failed: ' + se.message);
   }
+  return grid.length;
 }
 
 /**
@@ -2661,7 +2684,7 @@ function createDelegation(taskObj, passedUser) {
       'Task: ' + String(taskObj.task_desc || '') + '\n' +
       'By: ' + String(user['Name'] || '') + '\n' +
       'Due Date: ' + String(taskObj.first_date || '—') + '\n' +
-      '➡️ View & update on Fresko Staff Portal.';
+      '➡️ View & update on Joolry Daily.';
     _waSend(String(taskObj.delegated_to || ''), delMsg);
   } catch (e) { Logger.log('[WA] createDelegation error: ' + e.message); }
   return { success: true, task_id: taskId };
@@ -2737,7 +2760,7 @@ function updateDelegationStatus(taskId, status, remark, passedUser) {
         'Task: ' + String(del['Task'] || '') + '\n' +
         'Completed by: ' + String(user['Name'] || '') + '\n' +
         'On: ' + today + '\n' +
-        'Check Fresko Staff Portal for details.';
+        'Check Joolry Daily for details.';
       _waSend(String(del['Delegated By'] || ''), doneMsg);
     } catch (e) {
       Logger.log('[WA] taskCompleted error: ' + e.message);
@@ -2778,7 +2801,7 @@ function requestDateRevision(taskId, newDate, passedUser) {
       'Revised by: ' + String(user['Name'] || '') + '\n' +
       'New Date: ' + newDate + '\n' +
       (rev1 && rev2 ? '⚠️ Max revisions used — no more shifts allowed.' : '') +
-      '\nFresko Staff Portal'
+      '\nJoolry Daily'
     );
   } catch (eWA) { Logger.log('[WA] dateRevision error: ' + eWA.message); }
   return { success: true };
@@ -3807,8 +3830,16 @@ function getChecklistAnalyticsV2(filters, passedUser, preloadedRaw) {
 
 // Core send function — exactly as provided, no changes
 function sendWhatsAppMessage(phone, message) {
+  // Prefer hardcoded Joolry creds; AppConfig can override ONLY if non-empty Joolry values
   var API_KEY = WA_API_KEY;
   var BASIC_AUTH = WA_BASIC_AUTH;
+  try {
+    var k = getConfig('WA_API_KEY', '');
+    var b = getConfig('WA_BASIC_AUTH', '');
+    // Ignore sheet values that still point to old Fresko account
+    if (k && k.indexOf('01de01ec') < 0 && String(k).toLowerCase().indexOf('fresko') < 0) API_KEY = k;
+    if (b && b.indexOf('ZnJlc2tv') < 0 && String(b).toLowerCase().indexOf('fresko') < 0) BASIC_AUTH = b;
+  } catch (eCfg) {}
 
   // Extract last 10 digits (Indian mobile number)
   var clean = String(phone).replace(/\D/g, '');
@@ -3819,8 +3850,15 @@ function sendWhatsAppMessage(phone, message) {
     return { success: false, error: 'Invalid phone: ' + phone };
   }
 
-  // Fresko portal message prefix
-  var fullMsg = message;
+  // Force Joolry brand — strip any leftover Fresko and ensure footer
+  var fullMsg = String(message || '')
+    .replace(/Fresko\s*Staff\s*Portal/gi, 'Joolry Daily')
+    .replace(/Fresko\s*Daily/gi, 'Joolry Daily')
+    .replace(/Team\s*Fresko/gi, 'Team Joolry')
+    .replace(/Fresko/gi, 'Joolry');
+  if (!/Joolry\s*Daily/i.test(fullMsg)) {
+    fullMsg = fullMsg.replace(/\s+$/, '') + '\n— *Joolry Daily*';
+  }
 
   var payload = JSON.stringify({
     receiverMobileNo: number,
@@ -3875,7 +3913,7 @@ function waTest_Step1_SendToMyNumber() {
   Logger.log('BASIC_AUTH: ' + WA_BASIC_AUTH.substring(0, 10) + '...');
   Logger.log('Sending to: ' + MY_NUMBER);
 
-  var result = sendWhatsAppMessage(MY_NUMBER, 'Test from Fresko Portal ✅ ' + new Date().toLocaleTimeString());
+  var result = sendWhatsAppMessage(MY_NUMBER, 'Test from Joolry Daily ✅ ' + new Date().toLocaleTimeString());
   Logger.log('Result: ' + JSON.stringify(result));
 }
 
@@ -3911,7 +3949,7 @@ function waTest_Step3_SendToManagers() {
 
   phones.forEach(function (phone) {
     Logger.log('Sending to manager: ' + phone);
-    var r = sendWhatsAppMessage(phone, '👋 Manager test from Fresko Portal');
+    var r = sendWhatsAppMessage(phone, '👋 Manager test from Joolry Daily');
     Logger.log('Result: ' + JSON.stringify(r));
   });
 }
@@ -3923,7 +3961,7 @@ function waTest_Step4_DetailedAPI() {
 
   var payload = JSON.stringify({
     receiverMobileNo: NUMBER,
-    message: ['Fresko Portal API Test 🔥 Time: ' + new Date().toISOString()]
+    message: ['Joolry Daily API Test 🔥 Time: ' + new Date().toISOString()]
   });
 
   Logger.log('Payload: ' + payload);
@@ -4101,11 +4139,11 @@ function sendCelebrationWishes() {
       if (cel.type === 'birthday') {
         msg = cel.icon + ' *Happy Birthday ' + cel.name + '!*\n' +
           'Wishing you a wonderful day ahead. 🎉\n' +
-          'Team Fresko';
+          'Team Joolry';
       } else {
         msg = cel.icon + ' *Happy Work Anniversary ' + cel.name + '!*\n' +
-          cel.years + ' amazing year' + (cel.years > 1 ? 's' : '') + ' with Fresko. Thank you! 🙏\n' +
-          'Team Fresko';
+          cel.years + ' amazing year' + (cel.years > 1 ? 's' : '') + ' with Joolry. Thank you! 🙏\n' +
+          'Team Joolry';
       }
       sendWhatsAppMessage(cel.phone, msg);
       Logger.log('🎉 Wish sent to ' + cel.name + ' (' + cel.type + ')');
@@ -4152,7 +4190,7 @@ function requestLeave(leaveObj, passedUser) {
       ' (' + numDays + ' day' + (numDays > 1 ? 's' : '') + ')\n' +
       'Reason: ' + String(leaveObj.reason || '—') + '\n' +
       'Status: ⏳ Pending approval\n' +
-      '➡️ Please approve/reject on Fresko Staff Portal.';
+      '➡️ Please approve/reject on Joolry Daily.';
     _waSendToManagers(leaveMsg);
   } catch (e) { }
   return { success: true, request_id: requestId };
@@ -4261,7 +4299,7 @@ function approveLeaveRequest(requestId, newStatus, remark, passedUser) {
         'Dates: ' + String(req['from_date'] || '') + ' to ' + String(req['to_date'] || '') + '\n' +
         'Reviewed by: ' + String(user['Name'] || '') +
         (remark ? 'Remark: ' + remark : '') + '\n' +
-        'Check Fresko Staff Portal for details.';
+        'Check Joolry Daily for details.';
       _waSend(String(req['emp_id'] || ''), lvMsg);
     }
   } catch (e) { }
@@ -4290,7 +4328,7 @@ function cancelLeaveRequest(requestId, passedUser) {
       '🚫 *Leave Request Cancelled*\n' +
       'By: ' + String(user['Name'] || '') + '\n' +
       'Request ID: ' + requestId + '\n' +
-      'Fresko Staff Portal'
+      'Joolry Daily'
     );
   } catch (eWA) { }
   return { success: true };
@@ -4340,7 +4378,7 @@ function requestRegularization(regObj, passedUser) {
       'Date: ' + String(regObj.date || '') + '\n' +
       'Requested IN: ' + String(regObj.req_in || '—') + ' | OUT: ' + String(regObj.req_out || '—') + '\n' +
       'Reason: ' + String(regObj.reason || '—') + '\n' +
-      '➡️ Approve/reject on Fresko Staff Portal.';
+      '➡️ Approve/reject on Joolry Daily.';
     _waSendToManagers(regMsg);
   } catch (e) { }
   return { success: true, reg_id: regId };
@@ -7056,12 +7094,12 @@ function recordCheckIn(deviceTimestamp, passedUser) {
         '✅ *Check-In Recorded*\n' +
         'Name: ' + String(user['Name'] || '') + '\n' +
         'Time: ' + checkInTime + '  |  Date: ' + today + '\n' +
-        'Fresko Staff Portal'
+        'Joolry Daily'
       );
     }
     // Late alert to managers
     var workStart = getConfig('WORK_START_TIME', '09:00');
-    var lateThresh = parseInt(getConfig('LATE_THRESHOLD_MINS', '30')) || 30;
+    var lateThresh = parseInt(getConfig('LATE_THRESHOLD_MINS', '15'), 10) || 15;
     var wsParts = workStart.split(':');
     var wsMin = parseInt(wsParts[0] || 0) * 60 + parseInt(wsParts[1] || 0);
     var ciParts = checkInTime.split(':');
@@ -7201,7 +7239,7 @@ function recordCheckOut(deviceTimestamp, passedUser) {
           '🏁 *Check-Out Recorded*\n' +
           'Name: ' + String(user['Name'] || '') + '\n' +
           'Time: ' + checkOut + '  |  Hours: ' + totalHours + '\n' +
-          'Fresko Staff Portal'
+          'Joolry Daily'
         );
       }
     }
@@ -7940,7 +7978,7 @@ function debugSaveNewTask() {
     emp_id: 'Emp-1',
     emp_name: 'Test Employee',
     dept: 'Admin',
-    email: 'test@fresko.co.in',
+    email: 'test@joolry.in',
     frequency: 'D',
     start_date: '2025-05-15'  // jo frontend se aa raha hai exact format
   };
@@ -7985,7 +8023,7 @@ function debugGenerateChecklist() {
     emp_id: 'Emp-1',
     emp_name: 'Test Employee',
     dept: 'Admin',
-    email: 'test@fresko.co.in',
+    email: 'test@joolry.in',
     frequency: 'D',
     start_date: '2025-05-15'
   };
@@ -8044,7 +8082,7 @@ function debugDirectGenerate() {
       emp_id: 'Emp-1',
       emp_name: 'Test Employee',
       dept: 'Admin',
-      email: 'test@fresko.co.in',
+      email: 'test@joolry.in',
       frequency: 'D',
       start_date: '2025-05-15'
     });
@@ -8069,7 +8107,7 @@ function debugSaveNewTaskFull() {
     emp_id: 'Emp-1',
     emp_name: 'Test Employee',
     dept: 'Admin',
-    email: 'test@fresko.co.in',
+    email: 'test@joolry.in',
     frequency: 'D',
     start_date: '2025-05-21'  // aaj ki date
   };
@@ -8284,7 +8322,7 @@ function runPerfProfile() {
   function T(l, f) { var t = Date.now(); try { var r = f(); console.log('  OK  ' + l + ' → ' + (Date.now() - t) + 'ms' + (r && r.length !== undefined ? ' rows=' + r.length : '')); } catch (e) { console.log('  ERR ' + l + ' → ' + e.message); } }
   function H(s) { console.log('\n[' + s + ']'); }
 
-  console.log('FRESKO PERF PROFILE ' + today);
+  console.log('JOOLRY PERF PROFILE ' + today);
 
   H('1. SHEET READS — COLD (cache cleared)');
   CacheService.getScriptCache().removeAll();
