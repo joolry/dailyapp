@@ -597,6 +597,15 @@
       z-index: 1;
     }
 
+    /* App shell must NOT be centered — sidebar + main side-by-side */
+    #sApp.on {
+      display: flex !important;
+      flex-direction: row !important;
+      align-items: stretch !important;
+      justify-content: flex-start !important;
+      z-index: 1;
+    }
+
     #sLogin.on {
       z-index: 10;
       /* login always on top when shown */
@@ -1744,73 +1753,80 @@
 
     @media (min-width: 768px) {
       .sb-toggle {
-        display: inline-flex;
+        display: inline-flex !important;
       }
+      .ham { display: none !important; }
 
       #sApp.sb-collapsed .sb {
-        width: 72px;
-        min-width: 72px;
+        width: 72px !important;
+        min-width: 72px !important;
+        max-width: 72px !important;
       }
 
       #sApp.sb-collapsed .sb-brand {
-        flex-direction: column;
-        align-items: center;
-        gap: 8px;
+        flex-direction: column !important;
+        align-items: center !important;
+        gap: 8px !important;
       }
 
-      #sApp.sb-collapsed .sb-brand>div {
-        display: none;
+      #sApp.sb-collapsed .sb-brand > div:not(:first-child),
+      #sApp.sb-collapsed .sb-brand .sb-brand-text {
+        display: none !important;
       }
 
       #sApp.sb-collapsed .sb-brand img {
-        padding: 4px 6px;
+        padding: 4px 6px !important;
       }
 
       #sApp.sb-collapsed .sb-prof {
-        justify-content: center;
-        padding: 8px 6px;
+        justify-content: center !important;
+        padding: 8px 6px !important;
       }
 
-      #sApp.sb-collapsed .sb-prof>i.fa-chevron-right {
+      #sApp.sb-collapsed .sb-prof > i.fa-chevron-right {
         display: none !important;
       }
 
       #sApp.sb-collapsed .sb-prof-info {
-        display: none;
+        display: none !important;
       }
 
       #sApp.sb-collapsed .nv-section-label {
-        display: none;
+        display: none !important;
       }
 
       #sApp.sb-collapsed .nv {
-        justify-content: center;
-        gap: 0;
-        padding: 10px 8px;
-        font-size: 0;
-        position: relative;
+        justify-content: center !important;
+        gap: 0 !important;
+        padding: 10px 8px !important;
+        font-size: 0 !important;
+        position: relative !important;
+      }
+
+      #sApp.sb-collapsed .nv span:not(.nv-badge):not(.nv-tag) {
+        display: none !important;
       }
 
       #sApp.sb-collapsed .nv i {
-        font-size: 15px;
+        font-size: 15px !important;
       }
 
       #sApp.sb-collapsed .nv-tag,
       #sApp.sb-collapsed .nv-badge {
-        position: absolute;
-        top: 4px;
-        right: 2px;
-        font-size: 8px;
-        padding: 1px 5px;
-        margin: 0;
+        position: absolute !important;
+        top: 4px !important;
+        right: 2px !important;
+        font-size: 8px !important;
+        padding: 1px 5px !important;
+        margin: 0 !important;
       }
 
       #sApp.sb-collapsed .nv-sep {
-        margin: 8px 6px;
+        margin: 8px 6px !important;
       }
 
       #sApp.sb-collapsed .sb-ft {
-        display: none;
+        display: none !important;
       }
     }
 
@@ -5619,7 +5635,7 @@
     }
 
     /* Mobile overlay */
-    .mob-ov {
+    .mob-ov, .sb-overlay {
       display: none;
       position: fixed;
       inset: 0;
@@ -5631,7 +5647,7 @@
       transition: opacity .25s ease;
     }
 
-    .mob-ov.on {
+    .mob-ov.on, .sb-overlay.on {
       display: block;
       opacity: 1;
       animation: fadein-fast .25s ease forwards;
@@ -12983,21 +12999,37 @@
     justify-content: center !important;
   }
 
-  /* Sidebar off-canvas only on mobile */
+  /* Sidebar — off-canvas drawer on mobile */
   .sb {
     position: fixed !important;
-    transform: translateX(-100%) !important;
-    z-index: 300 !important;
+    top: 0 !important;
+    left: 0 !important;
+    height: 100vh !important;
+    height: 100svh !important;
+    width: min(86vw, 300px) !important;
+    min-width: 0 !important;
+    max-width: 300px !important;
+    transform: translateX(-105%) !important;
+    transition: transform .28s cubic-bezier(.4, 0, .2, 1) !important;
+    z-index: 400 !important;
+    box-shadow: none !important;
   }
   .sb.mob-open {
     transform: translateX(0) !important;
+    box-shadow: 8px 0 40px rgba(0,0,0,.22) !important;
+  }
+  #mobOv.on, #sbOverlay.on, .mob-ov.on, .sb-overlay.on {
+    display: block !important;
+    opacity: 1 !important;
+    pointer-events: auto !important;
+    z-index: 350 !important;
   }
   .main {
     margin-left: 0 !important;
     width: 100% !important;
   }
   .sb-toggle { display: none !important; }
-  .ham { display: flex !important; }
+  .ham, #hamBtn { display: inline-flex !important; }
 
   /* Native-feel cards */
   .card, .card-sm, .att-punch-card, .sec-card {
@@ -13114,6 +13146,106 @@
 
   /* Hide desktop-only bits */
   .hide-sm, .hide-mobile { display: none !important; }
+}
+
+/* ═══ Desktop sidebar collapse / expand — highest priority ═══ */
+@media (min-width: 768px) {
+  #sApp.on {
+    display: flex !important;
+    flex-direction: row !important;
+    align-items: stretch !important;
+    justify-content: flex-start !important;
+  }
+  .sb {
+    position: relative !important;
+    transform: none !important;
+    height: 100vh !important;
+    width: var(--sbw, 260px) !important;
+    min-width: var(--sbw, 260px) !important;
+    max-width: var(--sbw, 260px) !important;
+    z-index: 20 !important;
+    overflow-x: hidden !important;
+    transition: width .25s cubic-bezier(.4, 0, .2, 1),
+                min-width .25s cubic-bezier(.4, 0, .2, 1),
+                max-width .25s cubic-bezier(.4, 0, .2, 1) !important;
+  }
+
+  /* ── EXPANDED (default) ── */
+  #sApp:not(.sb-collapsed) .sb {
+    width: var(--sbw, 260px) !important;
+    min-width: var(--sbw, 260px) !important;
+    max-width: var(--sbw, 260px) !important;
+  }
+  #sApp:not(.sb-collapsed) .nv {
+    font-size: 13px !important;
+    justify-content: flex-start !important;
+    gap: 10px !important;
+    padding: 9px 14px !important;
+  }
+  #sApp:not(.sb-collapsed) .nv i {
+    font-size: 14px !important;
+  }
+  #sApp:not(.sb-collapsed) .sb-brand > div,
+  #sApp:not(.sb-collapsed) .sb-brand-txt,
+  #sApp:not(.sb-collapsed) .sb-prof-info,
+  #sApp:not(.sb-collapsed) .nv-section-label,
+  #sApp:not(.sb-collapsed) .sb-ft {
+    display: block !important;
+  }
+  #sApp:not(.sb-collapsed) .sb-prof > i.fa-chevron-right {
+    display: inline-block !important;
+  }
+  #sApp:not(.sb-collapsed) .nv-tag,
+  #sApp:not(.sb-collapsed) .nv-badge {
+    display: inline-flex !important;
+    position: static !important;
+  }
+
+  /* ── COLLAPSED (icon rail) ── */
+  #sApp.sb-collapsed .sb {
+    width: 72px !important;
+    min-width: 72px !important;
+    max-width: 72px !important;
+  }
+  #sApp.sb-collapsed .sb-brand > div,
+  #sApp.sb-collapsed .sb-brand-txt,
+  #sApp.sb-collapsed .sb-brand-text,
+  #sApp.sb-collapsed .sb-prof-info,
+  #sApp.sb-collapsed .nv-section-label,
+  #sApp.sb-collapsed .sb-ft {
+    display: none !important;
+  }
+  #sApp.sb-collapsed .sb-prof > i.fa-chevron-right {
+    display: none !important;
+  }
+  #sApp.sb-collapsed .nv {
+    justify-content: center !important;
+    font-size: 0 !important;
+    padding: 10px 8px !important;
+    gap: 0 !important;
+  }
+  #sApp.sb-collapsed .nv i {
+    font-size: 15px !important;
+  }
+  #sApp.sb-collapsed .nv-tag,
+  #sApp.sb-collapsed .nv-badge {
+    position: absolute !important;
+    top: 4px !important;
+    right: 2px !important;
+    font-size: 8px !important;
+    padding: 1px 5px !important;
+    margin: 0 !important;
+  }
+
+  .sb-toggle {
+    display: inline-flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+  }
+  .ham, #hamBtn { display: none !important; }
+  #mobOv, #sbOverlay, .mob-ov, .sb-overlay {
+    display: none !important;
+  }
 }
 
 /* Tablet polish (recovery 769–1024 range simplified) */
@@ -14352,48 +14484,92 @@
     /* ══════════════════════════════════════════════════════════
        SIDEBAR MOBILE
     ══════════════════════════════════════════════════════════ */
+    function _sbOverlays(on) {
+      ['mobOv', 'sbOverlay'].forEach(function (id) {
+        var el = document.getElementById(id);
+        if (!el) return;
+        if (on) el.classList.add('on');
+        else el.classList.remove('on');
+      });
+    }
+
     function _openSb() {
-      document.getElementById('sb').classList.add('mob-open');
-      document.getElementById('mobOv').classList.add('on');
+      var sb = document.getElementById('sb');
+      if (!sb) return;
+      sb.classList.add('mob-open');
+      _sbOverlays(true);
       document.body.style.overflow = 'hidden';
     }
     function _sbClose() { _closeSb(); }
     function _closeSb() {
-      document.getElementById('sb').classList.remove('mob-open');
-      document.getElementById('mobOv').classList.remove('on');
+      var sb = document.getElementById('sb');
+      if (sb) sb.classList.remove('mob-open');
+      _sbOverlays(false);
       document.body.style.overflow = '';
     }
-    // Unified toggle used by ham button
+    // Unified toggle used by ham button (mobile drawer)
     function _mobToggleSb() {
       var sb = document.getElementById('sb');
-      if (sb && sb.classList.contains('mob-open')) _closeSb();
+      if (!sb) return;
+      if (sb.classList.contains('mob-open')) _closeSb();
       else _openSb();
+    }
+
+    // Desktop: collapse / expand icon rail
+    function _syncSbChrome(collapsed) {
+      var ico = document.getElementById('sbToggleIco');
+      if (ico) ico.className = collapsed ? 'fas fa-angles-right' : 'fas fa-angles-left';
+      var btn = document.getElementById('sbToggle');
+      if (btn) btn.title = collapsed ? 'Expand sidebar' : 'Collapse sidebar';
+      // Inline width backup so expand always wins over conflicting CSS
+      var sb = document.getElementById('sb');
+      if (sb) {
+        if (collapsed) {
+          sb.style.setProperty('width', '72px', 'important');
+          sb.style.setProperty('min-width', '72px', 'important');
+          sb.style.setProperty('max-width', '72px', 'important');
+        } else {
+          sb.style.removeProperty('width');
+          sb.style.removeProperty('min-width');
+          sb.style.removeProperty('max-width');
+        }
+      }
     }
 
     function _toggleSbCollapse() {
       var app = document.getElementById('sApp');
       if (!app) return;
+      // On mobile drawer mode, use open/close instead
+      if (window.matchMedia('(max-width: 767px)').matches) {
+        _mobToggleSb();
+        return;
+      }
       app.classList.toggle('sb-collapsed');
       var collapsed = app.classList.contains('sb-collapsed');
-      try {localStorage.setItem('fk_sb_collapsed', collapsed ? '1' : '0');} catch (e) { }
-      var ico = document.getElementById('sbToggleIco');
-      if (ico) ico.className = collapsed ? 'fas fa-angles-right' : 'fas fa-angles-left';
-      var btn = document.getElementById('sbToggle');
-      if (btn) btn.title = collapsed ? 'Expand sidebar' : 'Collapse sidebar';
+      try { localStorage.setItem('fk_sb_collapsed', collapsed ? '1' : '0'); } catch (e) { }
+      _syncSbChrome(collapsed);
     }
 
     function _applySbCollapseState() {
       var app = document.getElementById('sApp');
       if (!app) return;
-      var collapsed = false;
-      try {collapsed = localStorage.getItem('fk_sb_collapsed') === '1';} catch (e) { }
-      if (collapsed) {
-        app.classList.add('sb-collapsed');
-        var ico = document.getElementById('sbToggleIco');
-        if (ico) ico.className = 'fas fa-angles-right';
-        var btn = document.getElementById('sbToggle');
-        if (btn) btn.title = 'Expand sidebar';
+      // Never start collapsed on mobile
+      if (window.matchMedia('(max-width: 767px)').matches) {
+        app.classList.remove('sb-collapsed');
+        _closeSb();
+        var sbM = document.getElementById('sb');
+        if (sbM) {
+          sbM.style.removeProperty('width');
+          sbM.style.removeProperty('min-width');
+          sbM.style.removeProperty('max-width');
+        }
+        return;
       }
+      var collapsed = false;
+      try { collapsed = localStorage.getItem('fk_sb_collapsed') === '1'; } catch (e) { }
+      if (collapsed) app.classList.add('sb-collapsed');
+      else app.classList.remove('sb-collapsed');
+      _syncSbChrome(collapsed);
     }
 
     /* ══════════════════════════════════════════════════════════
@@ -28348,13 +28524,13 @@
     _toast._t = null;
 
     if ('serviceWorker' in navigator) {
-      navigator.serviceWorker.register('sw.js?v=13').then(function (reg) {
+      navigator.serviceWorker.register('sw.js?v=16').then(function (reg) {
         reg.update();
         // Purge any leftover old caches from previous SW versions
         if (window.caches) {
           caches.keys().then(function (keys) {
             keys.forEach(function (k) {
-              if (k.indexOf('joolry-v13') !== 0) caches.delete(k);
+              if (k.indexOf('joolry-v16') !== 0) caches.delete(k);
             });
           });
         }
