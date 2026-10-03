@@ -2323,13 +2323,34 @@ function _generateChecklistForTask(t) {
     return d;
   }
 
-  // ── Build rows — SIMPLE loops, no nearestWorkDay snap (that was collapsing to 1 row) ──
+  // ── Build rows — original style: until end of Working Day Calendar (full coverage) ──
+  // Daily  → every working day from start → calendar last date
+  // Weekly → every 7 days until calendar end
+  // Monthly/etc → step by frequency until calendar end
   var rows = [];
   var seenDays = {};
 
+  // Calendar end = last date in Working Day Calender; else 1 year from start
+  var calEnd;
+  if (workDays.length) {
+    var maxYmd = workDays[0];
+    for (var wi = 1; wi < workDays.length; wi++) {
+      if (workDays[wi] > maxYmd) maxYmd = workDays[wi];
+    }
+    var mp = maxYmd.split('-');
+    calEnd = new Date(parseInt(mp[0], 10), parseInt(mp[1], 10) - 1, parseInt(mp[2], 10), 23, 59, 59);
+  } else {
+    calEnd = new Date(startDt.getFullYear() + 1, startDt.getMonth(), startDt.getDate(), 23, 59, 59);
+  }
+
   function _pushRow(dateObj) {
-    // Skip Sunday when SKIP_SUNDAYS=Yes
+    if (dateObj > calEnd) return false;
     if (skipSundays === 'Yes' && dateObj.getDay() === 0) return false;
+    // If real calendar loaded, only emit dates present in it
+    if (workDays.length >= 30) {
+      var ymd = Utilities.formatDate(dateObj, tz, 'yyyy-MM-dd');
+      if (!workDaysSet[ymd]) return false;
+    }
     var ds = Utilities.formatDate(dateObj, tz, 'yyyyMMdd');
     if (seenDays[ds]) return false;
     seenDays[ds] = true;
@@ -2342,47 +2363,55 @@ function _generateChecklistForTask(t) {
   }
 
   var cur = new Date(startDt.getFullYear(), startDt.getMonth(), startDt.getDate(), 12, 0, 0);
-  var i;
+  var safety = 0;
+  var maxSafety = 800;
 
   if (freq === 'D') {
-    // 90 weekdays (~3 months)
-    for (i = 0; i < 150 && rows.length < 90; i++) {
+    while (cur <= calEnd && safety < maxSafety) {
+      safety++;
       _pushRow(new Date(cur));
       cur.setDate(cur.getDate() + 1);
     }
   } else if (freq === 'W') {
-    for (i = 0; i < 26; i++) {
+    while (cur <= calEnd && safety < maxSafety) {
+      safety++;
       _pushRow(new Date(cur));
       cur.setDate(cur.getDate() + 7);
     }
   } else if (freq === 'F') {
-    for (i = 0; i < 13; i++) {
+    while (cur <= calEnd && safety < maxSafety) {
+      safety++;
       _pushRow(new Date(cur));
       cur.setDate(cur.getDate() + 14);
     }
   } else if (freq === 'M' || freq === '2M' || freq === 'Q' || freq === '4M' || freq === 'H') {
     var monthStep = ({ 'M': 1, '2M': 2, 'Q': 3, '4M': 4, 'H': 6 })[freq] || 1;
-    for (i = 0; i < 12; i++) {
+    while (cur <= calEnd && safety < maxSafety) {
+      safety++;
       _pushRow(new Date(cur));
       cur.setMonth(cur.getMonth() + monthStep);
     }
   } else if (freq === 'Y') {
-    for (i = 0; i < 3; i++) {
+    while (cur <= calEnd && safety < maxSafety) {
+      safety++;
       _pushRow(new Date(cur));
       cur.setFullYear(cur.getFullYear() + 1);
     }
   } else if (['E1st', 'E2nd', 'E3rd', 'E4th', 'ELast'].indexOf(freq) >= 0) {
-    for (i = 0; i < 12; i++) {
+    while (cur <= calEnd && safety < maxSafety) {
+      safety++;
       var nxt = nextDate(new Date(cur), freq);
       _pushRow(nxt || new Date(cur));
-      cur = nxt || new Date(cur.getFullYear(), cur.getMonth() + 1, cur.getDate());
+      if (!nxt || nxt.getTime() <= cur.getTime()) {
+        cur = new Date(cur.getFullYear(), cur.getMonth() + 1, cur.getDate(), 12, 0, 0);
+      } else {
+        cur = nxt;
+      }
     }
   } else {
-    // One-time / unknown — single row
     _pushRow(new Date(cur));
   }
 
-  // Absolute safety — at least one row
   if (!rows.length) {
     var fallback = new Date(startDt);
     if (fallback.getDay() === 0) fallback.setDate(fallback.getDate() + 1);
@@ -2394,7 +2423,10 @@ function _generateChecklistForTask(t) {
     ]);
   }
 
-  console.log('[_generateChecklistForTask] uid=' + t.uid + ' freq=' + freq + ' rows=' + rows.length + ' start=' + Utilities.formatDate(startDt, tz, 'yyyy-MM-dd'));
+  console.log('[_generateChecklistForTask] uid=' + t.uid + ' freq=' + freq + ' rows=' + rows.length +
+    ' start=' + Utilities.formatDate(startDt, tz, 'yyyy-MM-dd') +
+    ' calEnd=' + Utilities.formatDate(calEnd, tz, 'yyyy-MM-dd') +
+    ' workDays=' + workDays.length);
 
   var ss2 = _getSpreadsheet(CHECKLIST_MASTER_ID);
   var sh = ss2.getSheetByName('Checklist');
