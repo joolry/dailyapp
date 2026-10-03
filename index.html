@@ -13138,9 +13138,13 @@
   <div class="scr" id="sApp">
     <!-- Pull-to-refresh indicator (mobile) -->
     <div id="fkPtr"></div>
-    <!-- Global GAS call loading bar — iridescent sweep at very top -->
+    <!-- Global GAS call loading bar + chip so user always sees activity -->
     <div id="fkLb"
       style="position:fixed;top:0;left:0;right:0;height:3px;z-index:9999;background:linear-gradient(90deg,var(--P),var(--Pd),var(--T),var(--G),var(--Pd),var(--P));background-size:300% 100%;animation:loadBarSweep 1.4s linear infinite;opacity:0;transition:opacity .2s;pointer-events:none">
+    </div>
+    <div id="fkBusyChip"
+      style="position:fixed;top:12px;left:50%;transform:translateX(-50%) translateY(-120%);z-index:10000;background:#111827;color:#fff;padding:8px 16px;border-radius:999px;font-size:12px;font-weight:700;box-shadow:0 8px 24px rgba(0,0,0,.25);display:flex;align-items:center;gap:8px;opacity:0;transition:transform .22s ease,opacity .22s ease;pointer-events:none">
+      <i class="fas fa-spinner fa-spin"></i><span>Processing…</span>
     </div>
 
     <!-- Mobile sidebar overlay -->
@@ -14324,8 +14328,28 @@
 
     var _gasActive = 0; // count of concurrent GAS calls in flight
 
-    function _lbShow() {_gasActive++; var b = document.getElementById('fkLb'); if (b) b.style.opacity = '1';}
-    function _lbHide() {_gasActive = Math.max(0, _gasActive - 1); if (!_gasActive) {var b = document.getElementById('fkLb'); if (b) {b.style.opacity = '0';} } }
+    function _lbShow() {
+      _gasActive++;
+      var b = document.getElementById('fkLb');
+      if (b) b.style.opacity = '1';
+      var c = document.getElementById('fkBusyChip');
+      if (c) {
+        c.style.opacity = '1';
+        c.style.transform = 'translateX(-50%) translateY(0)';
+      }
+    }
+    function _lbHide() {
+      _gasActive = Math.max(0, _gasActive - 1);
+      if (!_gasActive) {
+        var b = document.getElementById('fkLb');
+        if (b) b.style.opacity = '0';
+        var c = document.getElementById('fkBusyChip');
+        if (c) {
+          c.style.opacity = '0';
+          c.style.transform = 'translateX(-50%) translateY(-120%)';
+        }
+      }
+    }
 
     function _gas(fn, args, onOk, onErr, _retryCount) {
       _lbShow();
@@ -14386,6 +14410,7 @@
 
     // Custom timeout wala _gas
     function _gasX(fn, args, timeout, onOk, onErr) {
+      _lbShow();
       var sendArgs = (args || []).concat([_U]);
       var cb = '_cb' + Date.now() + Math.floor(Math.random() * 9999);
       var payload = encodeURIComponent(JSON.stringify({action: fn, args: sendArgs}));
@@ -14397,6 +14422,7 @@
       var timer = setTimeout(function () {
         if (done) return;
         done = true;
+        _lbHide();
         script.remove();
         delete window[cb];
         if (onErr) onErr({message: 'Request timeout after ' + (timeout / 1000) + 's'});
@@ -14405,6 +14431,7 @@
       window[cb] = function (data) {
         if (done) return;
         done = true;
+        _lbHide();
         clearTimeout(timer);
         script.remove();
         delete window[cb];
@@ -14418,6 +14445,7 @@
       script.onerror = function () {
         if (done) return;
         done = true;
+        _lbHide();
         clearTimeout(timer);
         script.remove();
         delete window[cb];
@@ -18604,10 +18632,15 @@
 
     function _tamMark1(empId, empName, dept) {
       var btn = document.getElementById('mb_' + empId);
-      if (btn) {btn.disabled = true; btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i>';}
+      if (btn) {
+        if (btn.disabled) return;
+        btn.disabled = true;
+        btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Saving…';
+      }
       var inT = (document.getElementById('ti_' + empId) || {}).value || '';
       var outT = (document.getElementById('to_' + empId) || {}).value || '';
       var st = (document.getElementById('st_' + empId) || {}).value || 'P';
+      _toast('Marking ' + empName + '…', 'info');
       _gas('markStaffAttendance', [[{
         emp_id: empId, emp_name: empName, dept: dept,
         date: _teamAttDate, check_in: inT, check_out: outT, status: st
@@ -18618,7 +18651,7 @@
         _toast('✓ ' + empName + ' marked ' + (st === 'P' ? 'Present' : st === 'HD' ? 'Half Day' : 'Absent'), 'ok');
         _renderTeamList();
       }, function (e) {
-        _toast(e.message, 'err');
+        _toast(e.message || 'Mark failed', 'err');
         if (btn) {btn.disabled = false; btn.innerHTML = '<i class="fas fa-check"></i> Mark';}
       });
     }
@@ -18637,7 +18670,12 @@
       });
       if (!unmarked.length) {_toast('No unmarked staff in current filter', 'warn'); return;}
       var btn = document.querySelector('#tamBulkBar button');
-      if (btn) {btn.disabled = true; btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Marking…';}
+      if (btn) {
+        if (btn.disabled) return;
+        btn.disabled = true;
+        btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Marking ' + unmarked.length + '…';
+      }
+      _toast('Marking ' + unmarked.length + ' staff as Present…', 'info');
       var records = unmarked.map(function (r) {
         return {emp_id: r.emp_id, emp_name: r.name, dept: r.dept, date: _teamAttDate, check_in: bulkIn, check_out: bulkOut, status: 'P'};
       });
@@ -18647,7 +18685,7 @@
         _renderTeamList();
         if (btn) {btn.disabled = false; btn.innerHTML = '<i class="fas fa-check-double"></i> Mark All Present';}
       }, function (e) {
-        _toast(e.message, 'err');
+        _toast(e.message || 'Bulk mark failed', 'err');
         if (btn) {btn.disabled = false; btn.innerHTML = '<i class="fas fa-check-double"></i> Mark All Present';}
       });
     }
@@ -28210,13 +28248,13 @@
     _toast._t = null;
 
     if ('serviceWorker' in navigator) {
-      navigator.serviceWorker.register('sw.js?v=9').then(function (reg) {
+      navigator.serviceWorker.register('sw.js?v=10').then(function (reg) {
         reg.update();
         // Purge any leftover old caches from previous SW versions
         if (window.caches) {
           caches.keys().then(function (keys) {
             keys.forEach(function (k) {
-              if (k.indexOf('joolry-v9') !== 0) caches.delete(k);
+              if (k.indexOf('joolry-v10') !== 0) caches.delete(k);
             });
           });
         }
