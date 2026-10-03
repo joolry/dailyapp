@@ -662,6 +662,13 @@ function updateRowByField(sheetId, tabName, fieldName, fieldVal, updates) {
   var hdrs = data[0].map(function (h) { return String(h || '').trim(); });
   var fi = hdrs.indexOf(fieldName);
   if (fi < 0) throw new Error('Field not found: ' + fieldName + ' in ' + tabName);
+  // Auto-create missing update columns so remarks are never silently dropped
+  Object.keys(updates || {}).forEach(function (k) {
+    if (hdrs.indexOf(k) < 0) {
+      sh.getRange(1, hdrs.length + 1).setValue(k);
+      hdrs.push(k);
+    }
+  });
   for (var i = 1; i < data.length; i++) {
     if (String(data[i][fi]).trim() === String(fieldVal).trim()) {
       Object.keys(updates).forEach(function (k) {
@@ -1488,8 +1495,13 @@ function transferChecklistTask(rowNum, occ, taskUid, taskName, taskPlanned, from
   var toId = String(toEmpId).trim();
   var tname = String(taskName || '').trim().toLowerCase();
   var tuid = String(taskUid || '').trim();
-  // taskPlanned = task's OWN planned date (e.g. "2026-05-29"), NOT today's date
-  var taskDate = String(taskPlanned || '').trim();
+  // Normalize Task ID forms: "TASK-xxx_20261003" / "xxx_20261003" / "xxx"
+  if (tuid.indexOf('TASK-') === 0) tuid = tuid.substring(5);
+  var baseUid = tuid.split('_')[0] || tuid;
+  // taskPlanned = task's OWN planned date — normalize to yyyy-MM-dd
+  var taskDate = _normDateSafe(taskPlanned) || String(taskPlanned || '').trim();
+  if (taskDate && taskDate.length > 10) taskDate = taskDate.substring(0, 10);
+  var dateDigits = taskDate ? taskDate.replace(/-/g, '') : '';
   var rea = String(reason || '').trim();
   var r = parseInt(rowNum, 10);
   var occi = parseInt(occ, 10) || 0;
@@ -1559,13 +1571,32 @@ function transferChecklistTask(rowNum, occ, taskUid, taskName, taskPlanned, from
       var nv = String(sh.getRange(r, iNId + 1).getValue() || '').trim();
       if (nv === feid) { okToday = applyTransfer(sh, r, hdrs); if (okToday) return; }
     }
-    // Fallback: bulk scan
+    // Fallback: bulk scan — also match Task ID / UID
     var data = sh.getRange(1, 1, sh.getLastRow(), lc).getValues();
-    var iPlnd = hdrs.indexOf('Planned'), iTsk = hdrs.indexOf('Task'), seen = 0;
+    var iPlnd = hdrs.indexOf('Planned'), iTsk = hdrs.indexOf('Task');
+    var iTaskIdT = hdrs.indexOf('Task ID');
+    var iUidT = hdrs.indexOf('UID In TaskLIst');
+    if (iUidT < 0) iUidT = hdrs.indexOf('UID In TaskList');
+    var seen = 0;
     for (var i = 1; i < data.length; i++) {
       if (String(data[i][iNId] || '').trim() !== feid) continue;
-      if (iPlnd >= 0 && taskDate && _normDateSafe(data[i][iPlnd]) !== taskDate) continue;
-      if (tname && iTsk >= 0 && String(data[i][iTsk] || '').trim().toLowerCase() !== tname) continue;
+      if (iPlnd >= 0 && taskDate) {
+        var pdT = _normDateSafe(data[i][iPlnd]);
+        if (pdT && pdT !== taskDate) continue;
+      }
+      // Prefer UID / Task ID match when available
+      var rowTid = iTaskIdT >= 0 ? String(data[i][iTaskIdT] || '') : '';
+      var rowUid = iUidT >= 0 ? String(data[i][iUidT] || '') : '';
+      var idOk = true;
+      if (baseUid) {
+        idOk = (rowUid && rowUid.indexOf(baseUid) >= 0) ||
+               (rowTid && rowTid.indexOf(baseUid) >= 0) ||
+               (!rowUid && !rowTid);
+      }
+      if (!idOk && tname && iTsk >= 0) {
+        idOk = String(data[i][iTsk] || '').trim().toLowerCase() === tname;
+      }
+      if (!idOk) continue;
       if (seen !== occi) { seen++; continue; }
       okToday = applyTransfer(sh, i + 1, hdrs);
       return;
@@ -1588,55 +1619,82 @@ function transferChecklistTask(rowNum, occ, taskUid, taskName, taskPlanned, from
     SpreadsheetApp.flush(); // commit new column headers
 
     var lastRow = sh.getLastRow();
+    if (lastRow < 2) return;
     var iTaskId = hdrs.indexOf('Task ID');
     var iUID = hdrs.indexOf('UID In TaskLIst');
+    if (iUID < 0) iUID = hdrs.indexOf('UID In TaskList');
     var iNId = hdrs.indexOf('Name Id');
     var iPlnd = hdrs.indexOf('Planned');
     var iTsk = hdrs.indexOf('Task');
     var pickRow = -1;
+    var numRows = lastRow - 1; // data rows from row 2
 
-    // Build the correct full Task ID using task's OWN planned date
-    var dateDigits = taskDate ? taskDate.replace(/-/g, '') : '';  // e.g. "20260529"
-    Logger.log('[T] tuid="' + tuid + '" taskDate="' + taskDate + '" dateDigits="' + dateDigits + '"');
+    Logger.log('[T] tuid="' + tuid + '" baseUid="' + baseUid + '" taskDate="' + taskDate + '" dateDigits="' + dateDigits + '" emp=' + feid);
 
-    if (iTaskId >= 0) {
-      // Try 1: exact tuid (if already full like "925be848-110_20260529")
-      var m1 = sh.getRange(2, iTaskId + 1, lastRow - 1, 1).createTextFinder(tuid).matchEntireCell(true).findAll();
-      if (m1.length > 0) {
-        pickRow = m1[0].getRow();
-        Logger.log('[T] Found by exact tuid at row ' + pickRow);
+    function _findInCol(colIdx, needle, entire) {
+      if (colIdx < 0 || !needle || numRows < 1) return [];
+      try {
+        var finder = sh.getRange(2, colIdx + 1, numRows, 1).createTextFinder(String(needle));
+        if (entire) finder.matchEntireCell(true);
+        return finder.findAll() || [];
+      } catch (eF) { return []; }
+    }
+
+    function _rowMatches(rowVals) {
+      if (iNId >= 0 && String(rowVals[iNId] || '').trim() !== feid) return false;
+      if (taskDate && iPlnd >= 0) {
+        var pd = _normDateSafe(rowVals[iPlnd]);
+        if (pd && pd !== taskDate) return false;
       }
+      if (tname && iTsk >= 0) {
+        var tn = String(rowVals[iTsk] || '').trim().toLowerCase();
+        if (tn && tn !== tname) return false;
+      }
+      return true;
+    }
 
-      // Try 2: baseUID + task's OWN planned date (NOT today's date)
-      if (pickRow < 0 && dateDigits && tuid.indexOf(dateDigits) < 0) {
-        var baseUid = tuid.split('_')[0]; // "925be848-110"
-        var fullId = baseUid + '_' + dateDigits; // "925be848-110_20260529"
-        Logger.log('[T] Trying constructed ID: "' + fullId + '"');
-        var m2 = sh.getRange(2, iTaskId + 1, lastRow - 1, 1).createTextFinder(fullId).matchEntireCell(true).findAll();
-        if (m2.length > 0) {
-          pickRow = m2[0].getRow();
-          Logger.log('[T] Found by constructed ID "' + fullId + '" at row ' + pickRow);
+    // Try 1: exact / constructed Task ID
+    if (iTaskId >= 0) {
+      var idCandidates = [tuid];
+      if (dateDigits) {
+        idCandidates.push(baseUid + '_' + dateDigits);
+        idCandidates.push('TASK-' + baseUid + '_' + dateDigits);
+      }
+      idCandidates.push(baseUid);
+      for (var ci = 0; ci < idCandidates.length && pickRow < 0; ci++) {
+        var hits = _findInCol(iTaskId, idCandidates[ci], true);
+        if (!hits.length) hits = _findInCol(iTaskId, idCandidates[ci], false);
+        for (var hi = 0; hi < hits.length; hi++) {
+          var rr = hits[hi].getRow();
+          var rv = sh.getRange(rr, 1, 1, sh.getLastColumn()).getValues()[0];
+          if (_rowMatches(rv)) { pickRow = rr; break; }
         }
       }
     }
 
-    // Try 3: UID column + date filter + employee (most robust fallback)
-    if (pickRow < 0 && iUID >= 0 && iNId >= 0 && iPlnd >= 0) {
-      Logger.log('[T] Trying UID column fallback for emp=' + feid + ' date=' + taskDate);
-      var baseUid2 = tuid.split('_')[0] || tuid;
-      var mU = sh.getRange(2, iUID + 1, lastRow - 1, 1).createTextFinder(baseUid2).matchEntireCell(true).findAll();
+    // Try 2: UID column + emp + planned date
+    if (pickRow < 0 && iUID >= 0) {
+      var hitsU = _findInCol(iUID, baseUid, true);
+      if (!hitsU.length) hitsU = _findInCol(iUID, baseUid, false);
       var seen2 = 0;
-      for (var mu = 0; mu < mU.length; mu++) {
-        var rnu = mU[mu].getRow();
+      for (var mu = 0; mu < hitsU.length; mu++) {
+        var rnu = hitsU[mu].getRow();
         var rvu = sh.getRange(rnu, 1, 1, sh.getLastColumn()).getValues()[0];
-        if (String(rvu[iNId] || '').trim() !== feid) continue;
-        var pd = _normDateSafe(rvu[iPlnd]);
-        var pdr = String(rvu[iPlnd] || '').substring(0, 10);
-        if (taskDate && pd !== taskDate && pdr !== taskDate) continue;
-        if (tname && iTsk >= 0 && String(rvu[iTsk] || '').trim().toLowerCase() !== tname) continue;
+        if (!_rowMatches(rvu)) continue;
         if (seen2 !== occi) { seen2++; continue; }
         pickRow = rnu;
-        Logger.log('[T] Found by UID+date at row ' + rnu);
+        break;
+      }
+    }
+
+    // Try 3: emp + task name + planned date scan (last resort, limited)
+    if (pickRow < 0 && iNId >= 0 && iTsk >= 0 && tname) {
+      var dataScan = sh.getRange(2, 1, Math.min(numRows, 5000), sh.getLastColumn()).getValues();
+      var seen3 = 0;
+      for (var si = 0; si < dataScan.length; si++) {
+        if (!_rowMatches(dataScan[si])) continue;
+        if (seen3 !== occi) { seen3++; continue; }
+        pickRow = si + 2;
         break;
       }
     }
@@ -1758,10 +1816,22 @@ function managerCompleteDelegation(taskId, remarks, passedUser) {
   if (!user) throw new Error('NOT_AUTHENTICATED');
   if (!isMarkAttendanceAllowed(user)) throw new Error('PERMISSION_DENIED');
 
-  var updates = { status: 'Completed', actual_close_date: getISTDate() };
-  if (remarks) updates['completion_notes'] = remarks;
-  updateRowByField(MASTER_SHEET_ID, 'Task List', 'task_id', taskId, updates);
-  return { success: true };
+  var today = getISTDate();
+  var note = String(remarks || '').trim();
+  // Write to Delegation sheet (NOT Task List) with real column headers
+  var updates = {
+    'Status': 'Completed',
+    'Actual Close Date': today,
+    'Timestamp': getISTTimestamp()
+  };
+  if (note) {
+    updates['Completion Remarks'] = note;
+    updates['Remark'] = note; // also keep generic Remark for older views
+  }
+  var ok = updateRowByField(MASTER_SHEET_ID, 'Delegation', 'Task ID', taskId, updates);
+  if (!ok) throw new Error('Delegation task not found: ' + taskId);
+  _clearSheetCache(MASTER_SHEET_ID, 'Delegation');
+  return { success: true, stored_remark: note };
 }
 
 function managerShiftDelegation(taskId, newDueDate, reason, passedUser) {
@@ -1770,10 +1840,40 @@ function managerShiftDelegation(taskId, newDueDate, reason, passedUser) {
   if (!isMarkAttendanceAllowed(user)) throw new Error('PERMISSION_DENIED');
 
   if (!newDueDate) throw new Error('New due date is required');
-  var updates = { due_date: newDueDate, status: 'Shifted' };
-  if (reason) updates['remarks'] = reason;
-  updateRowByField(MASTER_SHEET_ID, 'Task List', 'task_id', taskId, updates);
-  return { success: true };
+  var why = String(reason || '').trim();
+  var updates = {
+    'Status': 'Shifted',
+    'Final Date': newDueDate,
+    'Timestamp': getISTTimestamp()
+  };
+  if (why) {
+    updates['Shift Reason'] = why;
+    updates['Remark'] = why;
+  }
+  // Track revision slots if empty
+  try {
+    var dels = getSheetData(MASTER_SHEET_ID, 'Delegation');
+    var del = null;
+    for (var i = 0; i < dels.length; i++) {
+      if (String(dels[i]['Task ID'] || '') === String(taskId)) { del = dels[i]; break; }
+    }
+    if (del) {
+      var rev1 = String(del['Revision 1'] || '').trim();
+      var rev2 = String(del['Revision 2'] || '').trim();
+      if (!rev1) {
+        updates['Revision 1'] = newDueDate;
+        updates['R1 Timestamp'] = getISTTimestamp();
+      } else if (!rev2) {
+        updates['Revision 2'] = newDueDate;
+        updates['R2 Timestamp'] = getISTTimestamp();
+      }
+    }
+  } catch (e) { }
+
+  var ok = updateRowByField(MASTER_SHEET_ID, 'Delegation', 'Task ID', taskId, updates);
+  if (!ok) throw new Error('Delegation task not found: ' + taskId);
+  _clearSheetCache(MASTER_SHEET_ID, 'Delegation');
+  return { success: true, stored_reason: why, new_due_date: newDueDate };
 }
 
 function markTaskDone(rowNum, occ, taskUid, taskName, taskPlanned, date, remarks, passedUser) {
@@ -2818,7 +2918,9 @@ function _enrichDeleg(d, today) {
     timestamp: assignedAt,
     assigned_at: assignedAt,          // same as timestamp — when it was assigned
     completed_at: completedAt,
-    completion_remarks: String(d['Completion Remarks'] || d['Remarks'] || d.completion_remarks || d.remarks || '')
+    completion_remarks: String(d['Completion Remarks'] || d['Remark'] || d['Remarks'] || d.completion_remarks || d.remarks || ''),
+    shift_reason: String(d['Shift Reason'] || d['Remark'] || d.shift_reason || ''),
+    remarks: String(d['Remark'] || d['Remarks'] || d['Completion Remarks'] || d['Shift Reason'] || '')
   };
 }
 
@@ -2974,18 +3076,22 @@ function updateDelegationStatus(taskId, status, remark, passedUser) {
 
   if (status === 'Completed') {
     upd['Final Date'] = today;
+    upd['Actual Close Date'] = today;
   }
   // Re-open: clear completion date
   if (curStatus === 'Completed' && status !== 'Completed') {
     upd['Final Date'] = '';
+    upd['Actual Close Date'] = '';
   }
 
   if (remark !== undefined && remark !== null && String(remark).trim() !== '') {
-    upd['Remark'] = String(remark).trim();
+    var rmk = String(remark).trim();
+    upd['Remark'] = rmk;
+    if (status === 'Completed') upd['Completion Remarks'] = rmk;
+    if (status === 'Shifted') upd['Shift Reason'] = rmk;
   }
 
   updateRowByField(MASTER_SHEET_ID, 'Delegation', 'Task ID', taskId, upd);
-
   if (status === 'Completed' && curStatus !== 'Completed') {
     try {
       var doneMsg = '✅ *Task Completed*\n' +
