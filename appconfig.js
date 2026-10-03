@@ -9,7 +9,7 @@ window.APP_CONFIG = {
   // ── GAS Web App URL ────────────────────────────────────────────────────
   // Har nayi deployment ke baad sirf yahan update karo
   // TODO: Deploy new GAS and paste URL here
-  GAS_URL: 'https://script.google.com/macros/s/AKfycbwAAVWnaLr0XY3JKZBN1SdTGnwqF0JuHFULF3mrjMwvozNoMR4mEgNfvsDCk0t-pySg/exec',
+  GAS_URL: 'https://script.google.com/macros/s/AKfycbzrwYNFMFcLevfMeBenzNoHqMLC9Qo2Vx__3aN0PQ9Lo5Pm9ElW8xJ_w8bCVMJkYXKq/exec',
 
   // ── App Info ────────────────────────────────────────────────────────────
   APP_NAME:    'Joolry Daily',
