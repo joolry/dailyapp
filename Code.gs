@@ -2172,69 +2172,88 @@ function saveNewTask(taskObj, passedUser) {
  */
 function _generateChecklistForTask(t) {
   // Parse start_date as local calendar date (avoid UTC shift)
+  // Accepts: yyyy-MM-dd | dd/MM/yyyy | dd-MM-yyyy | Date | "dd/MM/yyyy HH:mm:ss"
   var startDt;
   try {
-    var sd = String(t.start_date || '').substring(0, 10);
-    if (/^\d{4}-\d{2}-\d{2}$/.test(sd)) {
-      var sp = sd.split('-');
-      startDt = new Date(parseInt(sp[0], 10), parseInt(sp[1], 10) - 1, parseInt(sp[2], 10), 12, 0, 0);
+    var rawSd = t.start_date;
+    if (Object.prototype.toString.call(rawSd) === '[object Date]' && !isNaN(rawSd.getTime())) {
+      startDt = new Date(rawSd.getFullYear(), rawSd.getMonth(), rawSd.getDate(), 12, 0, 0);
     } else {
-      startDt = new Date(t.start_date);
+      var s0 = String(rawSd || '').trim();
+      var mIso = s0.match(/^(\d{4})-(\d{2})-(\d{2})/);
+      var mDmy = s0.match(/^(\d{1,2})[\/\-](\d{1,2})[\/\-](\d{4})/);
+      if (mIso) {
+        startDt = new Date(parseInt(mIso[1], 10), parseInt(mIso[2], 10) - 1, parseInt(mIso[3], 10), 12, 0, 0);
+      } else if (mDmy) {
+        startDt = new Date(parseInt(mDmy[3], 10), parseInt(mDmy[2], 10) - 1, parseInt(mDmy[1], 10), 12, 0, 0);
+      } else {
+        startDt = new Date(s0);
+      }
     }
   } catch (e) { startDt = new Date(); }
   if (isNaN(startDt.getTime())) startDt = new Date();
 
-  // Load Working Day Calendar (try both spellings + Week List which exists in Joolry master)
-  var calRows = [];
-  try { calRows = getSheetData(MASTER_SHEET_ID, 'Working Day Calender'); } catch (e1) { }
-  if (!calRows || !calRows.length) {
-    try { calRows = getSheetData(MASTER_SHEET_ID, 'Working Day Calendar'); } catch (e2) { }
-  }
-  if (!calRows || !calRows.length) {
-    try { calRows = getSheetData(MASTER_SHEET_ID, 'Week List'); } catch (e3) { }
-  }
-  var workDays = (calRows || []).map(function (r) {
-    var d = r['Working Dates'] || r['Working Date'] || r['Date'] || r['date'] || r['Week Start'] || '';
-    if (!d) return null;
-    try {
-      return Utilities.formatDate(new Date(d), _getTimezone(), 'yyyy-MM-dd');
-    } catch (e4) {
-      var s = String(d).substring(0, 10);
-      return /^\d{4}-\d{2}-\d{2}$/.test(s) ? s : null;
-    }
-  }).filter(Boolean);
+  // Build working-day list. NEVER use Week List (only Mondays → collapses Daily to 1 row).
+  var tz = _getTimezone();
+  var skipSundays = getConfig('SKIP_SUNDAYS', 'Yes');
+  var freq = String(t.frequency || 'D');
+  var workDays = [];
+  var workDaysSet = {};
 
-  // Fallback: if calendar empty, synthesize next 180 working days from start date
-  // (Mon–Sat when SKIP_SUNDAYS=Yes, else Mon–Fri)
-  if (!workDays.length) {
-    console.warn('[_generateChecklistForTask] Working Day Calendar empty — using 180-day weekday fallback');
-    var skipSun = (getConfig('SKIP_SUNDAYS', 'Yes') === 'Yes');
+  // Parse any date-ish value → yyyy-MM-dd (handles Date, ISO, dd/MM/yyyy display from getSheetData)
+  function _toYmd(val) {
+    if (val == null || val === '') return '';
+    if (Object.prototype.toString.call(val) === '[object Date]' && !isNaN(val.getTime())) {
+      return Utilities.formatDate(val, tz, 'yyyy-MM-dd');
+    }
+    var s = String(val).trim();
+    // yyyy-MM-dd or yyyy-MM-dd HH:mm:ss
+    var iso = s.match(/^(\d{4})-(\d{2})-(\d{2})/);
+    if (iso) return iso[1] + '-' + iso[2] + '-' + iso[3];
+    // dd/MM/yyyy or dd-MM-yyyy (Sheets display in India)
+    var dmy = s.match(/^(\d{1,2})[\/\-](\d{1,2})[\/\-](\d{4})/);
+    if (dmy) {
+      var dd = ('0' + dmy[1]).slice(-2);
+      var mm = ('0' + dmy[2]).slice(-2);
+      return dmy[3] + '-' + mm + '-' + dd;
+    }
+    // last resort
+    try {
+      var d = new Date(s);
+      if (!isNaN(d.getTime())) return Utilities.formatDate(d, tz, 'yyyy-MM-dd');
+    } catch (e) {}
+    return '';
+  }
+
+  // Prefer real Working Day Calender if present and has enough dates
+  try {
+    var calRows = getSheetData(MASTER_SHEET_ID, 'Working Day Calender');
+    if (!calRows || !calRows.length) {
+      try { calRows = getSheetData(MASTER_SHEET_ID, 'Working Day Calendar'); } catch (e2) { calRows = []; }
+    }
+    (calRows || []).forEach(function (r) {
+      var d = r['Working Dates'] || r['Working Date'] || r['Date'] || r['date'] || '';
+      var ds = _toYmd(d);
+      if (ds && !workDaysSet[ds]) { workDaysSet[ds] = true; workDays.push(ds); }
+    });
+  } catch (eCal) { }
+
+  // If calendar missing / too thin (< 30 days), synthesize Mon–Sat from start date
+  if (workDays.length < 30) {
+    console.warn('[_generateChecklistForTask] calendar thin/empty (' + workDays.length + ') — synthesizing 200 work days');
+    workDays = [];
+    workDaysSet = {};
     var syn = new Date(startDt.getTime());
-    for (var si = 0; si < 280 && workDays.length < 180; si++) {
+    for (var si = 0; si < 400 && workDays.length < 200; si++) {
       var dow = syn.getDay();
-      if (dow === 0) { /* Sunday always skip */ }
-      else if (!skipSun && dow === 6) { /* Sat only when strict weekdays */ }
-      else {
-        workDays.push(Utilities.formatDate(syn, _getTimezone(), 'yyyy-MM-dd'));
+      if (dow !== 0) { // skip Sunday
+        var ds2 = Utilities.formatDate(syn, tz, 'yyyy-MM-dd');
+        if (!workDaysSet[ds2]) { workDaysSet[ds2] = true; workDays.push(ds2); }
       }
       syn.setDate(syn.getDate() + 1);
     }
   }
-  // Ultimate safety: if still empty, force at least 90 consecutive days from start
-  if (!workDays.length) {
-    var syn2 = new Date(startDt.getTime());
-    for (var sj = 0; sj < 90; sj++) {
-      workDays.push(Utilities.formatDate(syn2, _getTimezone(), 'yyyy-MM-dd'));
-      syn2.setDate(syn2.getDate() + 1);
-    }
-  }
 
-  var lastWorkDay = new Date(workDays[workDays.length - 1]);
-  var skipSundays = getConfig('SKIP_SUNDAYS', 'Yes');
-  var tz = _getTimezone();
-  var freq = String(t.frequency || 'D');
-
-  // Helper: nth weekday of month
   function nthWeekdayOfMonth(year, month, weekday, n) {
     var d = new Date(year, month, 1);
     var count = 0;
@@ -2274,23 +2293,21 @@ function _generateChecklistForTask(t) {
     }
     return n;
   }
+  // Snap to nearest listed working day (or keep date if synthesizer covers it)
   function nearestWorkDay(d) {
-    var tries = 0;
     var cand = new Date(d);
-    while (tries < 30) {
+    for (var tries = 0; tries < 14; tries++) {
       var ds = Utilities.formatDate(cand, tz, 'yyyy-MM-dd');
-      if (workDays.indexOf(ds) >= 0) {
+      if (workDaysSet[ds]) {
         if (skipSundays === 'Yes' && cand.getDay() === 0) {
           cand.setDate(cand.getDate() - 1);
-          tries++;
           continue;
         }
         return new Date(cand);
       }
       cand.setDate(cand.getDate() - 1);
-      tries++;
     }
-    return new Date(d); // fallback to original
+    return new Date(d);
   }
 
   // ── Time parts ───────────────────────────────────────────────────────────
@@ -2505,6 +2522,10 @@ function portalGenerateChecklist(passedUser) {
   tasks.forEach(function (t) {
     try {
       var empId = String(t['Doer ID'] || '');
+      var dayDateRaw = String(t['Day/Date'] || '');
+      var startTime = '';
+      var tm = dayDateRaw.match(/(\d{1,2}):(\d{2})/);
+      if (tm) startTime = ('0' + tm[1]).slice(-2) + ':' + tm[2];
       _generateChecklistForTask({
         uid: String(t['Setup Task ID'] || ''),
         task_name: String(t['Task'] || ''),
@@ -2513,7 +2534,8 @@ function portalGenerateChecklist(passedUser) {
         dept: String(t['Department'] || ''),
         email: getDoerEmail(empId),
         frequency: String(t['Frequency'] || 'D'),
-        start_date: String(t['Day/Date'] || '')
+        start_date: dayDateRaw,
+        start_time: startTime
       });
       generated++;
     } catch (e) {
