@@ -7483,37 +7483,55 @@ function getTeamAttendanceStatus(dateStr, passedUser) {
 }
 
 /**
- * Convert any sheet/UI time value → minutes from midnight (IST-safe).
- * ALWAYS goes through _extractTimeStr so Date / serial / "HH:mm" are consistent.
+ * Parse ANY time-ish value to minutes from midnight.
+ * Priority: plain HH:mm → extractTimeStr → null.
  */
 function _toMins(t) {
-  if (t === null || t === undefined || t === '' || t === '-') return 0;
-  // Normalize first (handles Date, serial, "yyyy-MM-dd HH:mm:ss", pure "HH:mm")
+  if (t === null || t === undefined || t === '' || t === '-') return -1;
+  // Fast path: already "HH:mm" or "HH:mm:ss"
+  var s0 = String(t).trim();
+  var plain = s0.match(/^(\d{1,2}):(\d{2})(?::\d{2})?$/);
+  if (plain) {
+    var ph = parseInt(plain[1], 10), pm = parseInt(plain[2], 10);
+    if (ph >= 0 && ph <= 23 && pm >= 0 && pm <= 59) return ph * 60 + pm;
+  }
+  // "yyyy-MM-dd HH:mm:ss" — take the TIME part only (never the date digits)
+  var dt = s0.match(/^\d{4}-\d{2}-\d{2}[ T](\d{1,2}):(\d{2})(?::\d{2})?/);
+  if (dt) {
+    var dh = parseInt(dt[1], 10), dm = parseInt(dt[2], 10);
+    if (dh >= 0 && dh <= 23 && dm >= 0 && dm <= 59) return dh * 60 + dm;
+  }
+  // Fallback: _extractTimeStr (Date objects, serials, etc.)
   var hhmm = _extractTimeStr(t);
-  if (!hhmm || hhmm === '-') return 0;
+  if (!hhmm || hhmm === '-') return -1;
   var parts = String(hhmm).split(':');
   var h = parseInt(parts[0], 10);
   var m = parseInt(parts[1], 10);
-  if (isNaN(h) || isNaN(m)) return 0;
-  if (h < 0 || h > 23 || m < 0 || m > 59) return 0;
+  if (isNaN(h) || isNaN(m) || h < 0 || h > 23 || m < 0 || m > 59) return -1;
   return h * 60 + m;
 }
 
-/** Worked hours label from check-in / check-out. Never crosses midnight for same-day attendance. */
+/**
+ * Worked hours: ONLY difference of clock times same day.
+ * 11:11 → 18:20 MUST return "7h 9m". Never uses Date subtraction.
+ */
 function _attHoursLabel(ciRaw, coRaw) {
   var ci = _toMins(ciRaw);
   var co = _toMins(coRaw);
-  if (ci <= 0 || co <= 0) return '';
-  // Same-day office: out must be after in
-  if (co <= ci) return '';
-  var diff = co - ci;
-  // Guard absurd values (> 16h shift unlikely for this office)
-  if (diff > 16 * 60) {
-    Logger.log('[attHours] suspicious duration ' + diff + 'm from ci=' + ci + ' co=' + co + ' raw=[' + ciRaw + ']/[' + coRaw + ']');
+  if (ci < 0 || co < 0) {
+    Logger.log('[attHours] parse fail ciRaw=' + ciRaw + '→' + ci + ' coRaw=' + coRaw + '→' + co);
+    return '';
   }
+  if (co <= ci) {
+    Logger.log('[attHours] co<=ci ci=' + ci + ' co=' + co);
+    return '';
+  }
+  var diff = co - ci;
   var hh = Math.floor(diff / 60);
   var mm = diff % 60;
-  return hh + 'h ' + mm + 'm';
+  var label = hh + 'h ' + mm + 'm';
+  Logger.log('[attHours] ' + ciRaw + ' → ' + coRaw + ' = ' + label + ' (' + diff + ' min)');
+  return label;
 }
 
 /** Case-insensitive header index */
@@ -7632,16 +7650,28 @@ function markStaffAttendance(records, passedUser) {
         var outTs = date + ' ' + outNormUi + ':00';
         updates['check_out_ts'] = outTs;
         updates['check_out_device_ts'] = outTs;
-        // Hours ONLY from pure HH:mm of IN and OUT
+        // Hours ONLY from pure HH:mm of IN and OUT (never Date math)
         var inForHrs = hasExistingIn ? existingCi : inNormUi;
-        var hrs = _attHoursLabel(inForHrs, outNormUi);
+        // Re-normalize to strict HH:mm
+        var inStrict = _extractTimeStr(inForHrs) || inForHrs;
+        var outStrict = outNormUi;
+        var hrs = _attHoursLabel(inStrict, outStrict);
         updates['total_hours'] = hrs || '';
-        Logger.log('[markStaff] emp=' + empId + ' in=' + inForHrs + ' out=' + outNormUi + ' hours=' + hrs);
+        Logger.log('[markStaff] emp=' + empId + ' in=' + inStrict + ' out=' + outStrict + ' hours=' + hrs);
       }
       updates['marked_by'] = markedBy;
       updates['source'] = 'ManagerMark';
       var ok = _updateDailyAttRow(empId, date, updates);
       if (!ok) throw new Error('Could not update attendance for ' + empId + ' on ' + date);
+      // Hard-verify total_hours cell is text format (prevent Sheets duration auto-format)
+      try {
+        var shV = _getSpreadsheet(NEW_ATTENDANCE_SHEET_ID).getSheetByName('Daily-Attendance');
+        if (shV) {
+          var hdrV = shV.getRange(1, 1, 1, shV.getLastColumn()).getValues()[0].map(function (h) { return String(h || '').trim(); });
+          var iHrs = _hdrIdx(hdrV, 'total_hours');
+          if (iHrs >= 0) shV.getRange(2, iHrs + 1, Math.max(shV.getLastRow() - 1, 1), 1).setNumberFormat('@');
+        }
+      } catch (eFmt) { }
     } else {
       // Create new record — fill IN and OUT columns that the sheet expects
       var attId = 'ATT-' + _hex8();
@@ -7680,6 +7710,37 @@ function markStaffAttendance(records, passedUser) {
 
   try { _clearSheetCache(NEW_ATTENDANCE_SHEET_ID, 'Daily-Attendance'); } catch (e2) { }
   return { success: true, saved: saved };
+}
+
+/**
+ * One-shot repair: recompute total_hours for every Daily-Attendance row
+ * from check_in / check_out. Run from Apps Script editor if old rows show
+ * wrong durations (e.g. "17h 48m" for 11:11→18:20).
+ */
+function repairAllAttendanceHours() {
+  var ss = _getSpreadsheet(NEW_ATTENDANCE_SHEET_ID);
+  var sh = ss.getSheetByName('Daily-Attendance');
+  if (!sh || sh.getLastRow() < 2) return { fixed: 0 };
+  var vals = sh.getDataRange().getValues();
+  var hdrs = vals[0].map(function (h) { return String(h || '').trim(); });
+  var iCi = _hdrIdx(hdrs, 'check_in');
+  var iCo = _hdrIdx(hdrs, 'check_out');
+  var iHrs = _hdrIdx(hdrs, 'total_hours');
+  if (iCi < 0 || iCo < 0 || iHrs < 0) return { fixed: 0, error: 'missing columns' };
+  sh.getRange(2, iHrs + 1, sh.getLastRow() - 1, 1).setNumberFormat('@');
+  var fixed = 0;
+  for (var i = 1; i < vals.length; i++) {
+    var ci = _extractTimeStr(vals[i][iCi]);
+    var co = _extractTimeStr(vals[i][iCo]);
+    if (!ci || ci === '-' || !co || co === '-') continue;
+    var label = _attHoursLabel(ci, co);
+    if (!label) continue;
+    sh.getRange(i + 1, iHrs + 1).setNumberFormat('@').setValue(label);
+    fixed++;
+  }
+  SpreadsheetApp.flush();
+  _clearSheetCache(NEW_ATTENDANCE_SHEET_ID, 'Daily-Attendance');
+  return { fixed: fixed };
 }
 
 function recordCheckIn(deviceTimestamp, passedUser) {
