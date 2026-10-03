@@ -21551,7 +21551,7 @@
         '</div>' +
         '<div class="fgrp" style="margin-top:12px"><label>Reason</label>' +
         '<textarea id="mLvReason" rows="3" placeholder="Brief reason for leave..." style="width:100%;min-height:80px;font-size:16px;resize:vertical;border-radius:10px"></textarea></div>' +
-        '<div class="tip" style="margin-top:12px;padding:10px 12px;font-size:12px;line-height:1.45"><i class="fas fa-info-circle"></i> Your manager will be notified. Approved leaves appear in your leave calendar.</div>' +
+        '<div class="tip" style="margin-top:12px;padding:10px 12px;font-size:12px;line-height:1.45"><i class="fas fa-info-circle"></i> Manager notified after submit. Approved leaves show in calendar.</div>' +
         '</div>',
         function () {
           var type = document.getElementById('mLvType') ? document.getElementById('mLvType').value : '';
@@ -28021,13 +28021,13 @@
     _toast._t = null;
 
     if ('serviceWorker' in navigator) {
-      navigator.serviceWorker.register('sw.js?v=5').then(function (reg) {
+      navigator.serviceWorker.register('sw.js?v=6').then(function (reg) {
         reg.update();
         // Purge any leftover old caches from previous SW versions
         if (window.caches) {
           caches.keys().then(function (keys) {
             keys.forEach(function (k) {
-              if (k.indexOf('joolry-v5') !== 0) caches.delete(k);
+              if (k.indexOf('joolry-v6') !== 0) caches.delete(k);
             });
           });
         }
