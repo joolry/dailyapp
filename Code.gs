@@ -7387,7 +7387,7 @@ function getTeamAttendanceStatus(dateStr, passedUser) {
       attMap[eid] = { check_in: '', check_out: '', status: '', total_hours: '', att_id: '' };
     }
 
-    // ✅ Single helper
+    // ✅ Single helper — always HH:mm
     var times = _attTimesFromRow(r);
     var ci = times.check_in;
     var co = times.check_out;
@@ -7399,7 +7399,10 @@ function getTeamAttendanceStatus(dateStr, passedUser) {
       attMap[eid].check_out = co;
     }
     attMap[eid].status = String(r['status'] || '');
-    attMap[eid].total_hours = String(r['total_hours'] || '');
+    // Prefer recomputed hours from IN/OUT so bad stored values (e.g. 17h 34m) don't show
+    var recomputed = (ci && co && ci !== '-' && co !== '-') ? _attHoursLabel(ci, co) : '';
+    var storedHrs = String(r['total_hours'] || '').trim();
+    attMap[eid].total_hours = recomputed || storedHrs;
     attMap[eid].att_id = String(r['att_id'] || '');
   });
 
@@ -7479,31 +7482,38 @@ function getTeamAttendanceStatus(dateStr, passedUser) {
   });
 }
 
-/** Convert "HH:mm" / "HH:mm:ss" / Date / sheet value → minutes from midnight */
+/**
+ * Convert any sheet/UI time value → minutes from midnight (IST-safe).
+ * ALWAYS goes through _extractTimeStr so Date / serial / "HH:mm" are consistent.
+ */
 function _toMins(t) {
   if (t === null || t === undefined || t === '' || t === '-') return 0;
-  if (typeof t === 'number' && isFinite(t)) {
-    // Sheet time serial (fraction of day) or excel-ish
-    if (t > 0 && t < 1) return Math.round(t * 24 * 60);
-    if (t >= 1 && t < 24) return Math.round(t * 60); // unlikely
-  }
-  if (t instanceof Date && !isNaN(t.getTime())) {
-    return t.getHours() * 60 + t.getMinutes();
-  }
-  var s = String(t).trim();
-  // Prefer time at end: "2026-10-03 10:07:00" or pure "10:07"
-  var m = s.match(/(?:^|\s)(\d{1,2}):(\d{2})(?::\d{2})?\s*$/);
-  if (!m) m = s.match(/(\d{1,2}):(\d{2})/);
-  if (!m) return 0;
-  return (parseInt(m[1], 10) || 0) * 60 + (parseInt(m[2], 10) || 0);
+  // Normalize first (handles Date, serial, "yyyy-MM-dd HH:mm:ss", pure "HH:mm")
+  var hhmm = _extractTimeStr(t);
+  if (!hhmm || hhmm === '-') return 0;
+  var parts = String(hhmm).split(':');
+  var h = parseInt(parts[0], 10);
+  var m = parseInt(parts[1], 10);
+  if (isNaN(h) || isNaN(m)) return 0;
+  if (h < 0 || h > 23 || m < 0 || m > 59) return 0;
+  return h * 60 + m;
 }
 
+/** Worked hours label from check-in / check-out. Never crosses midnight for same-day attendance. */
 function _attHoursLabel(ciRaw, coRaw) {
   var ci = _toMins(ciRaw);
   var co = _toMins(coRaw);
-  if (!ci || !co || co <= ci) return '';
+  if (ci <= 0 || co <= 0) return '';
+  // Same-day office: out must be after in
+  if (co <= ci) return '';
   var diff = co - ci;
-  return Math.floor(diff / 60) + 'h ' + (diff % 60) + 'm';
+  // Guard absurd values (> 16h shift unlikely for this office)
+  if (diff > 16 * 60) {
+    Logger.log('[attHours] suspicious duration ' + diff + 'm from ci=' + ci + ' co=' + co + ' raw=[' + ciRaw + ']/[' + coRaw + ']');
+  }
+  var hh = Math.floor(diff / 60);
+  var mm = diff % 60;
+  return hh + 'h ' + mm + 'm';
 }
 
 /** Case-insensitive header index */
@@ -7584,41 +7594,49 @@ function markStaffAttendance(records, passedUser) {
     var ss = _getSpreadsheet(NEW_ATTENDANCE_SHEET_ID);
     var sh = ss.getSheetByName('Daily-Attendance');
     var exists = false;
-    var existingCi = checkIn;
+    var existingCi = '';
     if (sh && sh.getLastRow() > 1) {
       var vals = sh.getDataRange().getValues();
       var hdrs = vals[0].map(function (h) { return String(h || '').trim(); });
-      var iEmp = hdrs.indexOf('emp_id');
-      var iDt = hdrs.indexOf('date');
-      var iCi = hdrs.indexOf('check_in');
+      var iEmp = _hdrIdx(hdrs, 'emp_id');
+      var iDt = _hdrIdx(hdrs, 'date');
+      var iCi = _hdrIdx(hdrs, 'check_in');
       for (var i = 1; i < vals.length; i++) {
         if (String(vals[i][iEmp] || '').trim() !== empId) continue;
         if (_normDateSafe(vals[i][iDt]) !== date) continue;
         exists = true;
-        if (iCi >= 0 && vals[i][iCi]) existingCi = String(vals[i][iCi]);
+        // ALWAYS normalize via _extractTimeStr (Date / serial / text)
+        if (iCi >= 0 && vals[i][iCi] !== '' && vals[i][iCi] !== null) {
+          existingCi = _extractTimeStr(vals[i][iCi]);
+        }
         break;
       }
     }
+
+    // Normalize UI times to HH:mm
+    var inNormUi = checkIn ? (_extractTimeStr(checkIn) || (checkIn.length >= 4 ? checkIn.substring(0, 5) : checkIn)) : '';
+    var outNormUi = checkOut ? (_extractTimeStr(checkOut) || (checkOut.length >= 4 ? checkOut.substring(0, 5) : checkOut)) : '';
 
     if (exists) {
       // OUT update: fill check_out + total_hours + timestamps; keep existing IN
       var updates = {};
       updates['status'] = status || 'P';
-      // Only write check_in if provided AND we don't already have one
-      var hasExistingIn = existingCi && String(existingCi).trim() && String(existingCi).trim() !== '-';
-      if (checkIn && !hasExistingIn) {
-        updates['check_in'] = checkIn;
-        updates['check_in_ts'] = date + ' ' + checkIn + (checkIn.length === 5 ? ':00' : '');
+      var hasExistingIn = existingCi && existingCi !== '-';
+      if (inNormUi && !hasExistingIn) {
+        updates['check_in'] = inNormUi;
+        updates['check_in_ts'] = date + ' ' + inNormUi + ':00';
         updates['check_in_device_ts'] = updates['check_in_ts'];
       }
-      if (checkOut) {
-        var outNorm = checkOut.length === 5 ? checkOut : checkOut.substring(0, 5);
-        updates['check_out'] = outNorm;
-        var outTs = date + ' ' + outNorm + ':00';
+      if (outNormUi) {
+        updates['check_out'] = outNormUi;
+        var outTs = date + ' ' + outNormUi + ':00';
         updates['check_out_ts'] = outTs;
         updates['check_out_device_ts'] = outTs;
-        var hrs = _attHoursLabel(hasExistingIn ? existingCi : checkIn, outNorm);
-        updates['total_hours'] = hrs || '0h 0m';
+        // Hours ONLY from pure HH:mm of IN and OUT
+        var inForHrs = hasExistingIn ? existingCi : inNormUi;
+        var hrs = _attHoursLabel(inForHrs, outNormUi);
+        updates['total_hours'] = hrs || '';
+        Logger.log('[markStaff] emp=' + empId + ' in=' + inForHrs + ' out=' + outNormUi + ' hours=' + hrs);
       }
       updates['marked_by'] = markedBy;
       updates['source'] = 'ManagerMark';
@@ -7630,8 +7648,8 @@ function markStaffAttendance(records, passedUser) {
       var days = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
       var dObj = new Date(date + 'T00:00:00');
       var dayNm = days[dObj.getDay()] || '';
-      var inNorm = checkIn ? (checkIn.length === 5 ? checkIn : checkIn.substring(0, 5)) : '';
-      var outNorm2 = checkOut ? (checkOut.length === 5 ? checkOut : checkOut.substring(0, 5)) : '';
+      var inNorm = inNormUi || '';
+      var outNorm2 = outNormUi || '';
       var totalH = _attHoursLabel(inNorm, outNorm2);
       var inTs = inNorm ? date + ' ' + inNorm + ':00' : '';
       var outTs2 = outNorm2 ? date + ' ' + outNorm2 + ':00' : '';
@@ -7825,23 +7843,17 @@ function recordCheckOut(deviceTimestamp, passedUser) {
     }
   }
   if (!rec) throw new Error('No check-in found for today. Please check in first.');
-  var ci = String(rec['check_in'] || '').trim();
+  var ci = _extractTimeStr(rec['check_in']);
   if (!ci || ci === '-') throw new Error('Please check in before checking out.');
-  var co = String(rec['check_out'] || '').trim();
+  var co = _extractTimeStr(rec['check_out']);
   if (co && co !== '-') throw new Error('Already checked out today at ' + co + '.');
 
-  // ── Calculate total hours ────────────────────────────────────────────────
-  var totalHours = '-';
+  // ── Calculate total hours (IST-safe via _extractTimeStr / _toMins) ───────
+  var totalHours = _attHoursLabel(ci, checkOut) || '-';
   var totalHrsNum = 0;
-  try {
-    var diff = (new Date(today + 'T' + checkOut + ':00') - new Date(today + 'T' + ci + ':00')) / 3600000;
-    if (diff > 0) {
-      totalHrsNum = diff;
-      var h = Math.floor(diff);
-      var m = Math.round((diff - h) * 60);
-      totalHours = h + 'h ' + (m < 10 ? '0' + m : m) + 'm';
-    }
-  } catch (e) { console.warn('[recordCheckOut] ' + e.message); }
+  var _ciM = _toMins(ci);
+  var _coM = _toMins(checkOut);
+  if (_ciM > 0 && _coM > _ciM) totalHrsNum = (_coM - _ciM) / 60;
 
   // ── Update row directly via sheet range ─────────────────────────────────
   var attId = String(rec['att_id'] || '');
