@@ -2689,11 +2689,56 @@ function deactivateTask(taskUid, passedUser) {
     }
   }
 
-  // ── 3. Cache clear ────────────────────────────────────────
+  // ── 3. Checklist_Today se bhi same UID rows delete ─────────
+  var todayDeleted = 0;
+  try {
+    var shToday = css.getSheetByName('Checklist_Today');
+    if (shToday && shToday.getLastRow() > 1) {
+      var tData2 = shToday.getDataRange().getValues();
+      var tHdrs2 = tData2[0].map(function (h) { return String(h || '').trim(); });
+      var tUidIdx = tHdrs2.indexOf('UID In TaskLIst');
+      if (tUidIdx < 0) tUidIdx = tHdrs2.indexOf('UID In TaskList');
+      if (tUidIdx >= 0) {
+        var toDelToday = [];
+        for (var tj = tData2.length - 1; tj >= 1; tj--) {
+          if (String(tData2[tj][tUidIdx] || '').trim() === taskUid) {
+            toDelToday.push(tj + 1);
+          }
+        }
+        if (toDelToday.length > 0) {
+          var blocksT = [];
+          var bEnd = toDelToday[0], bStart = toDelToday[0];
+          for (var tbi = 1; tbi < toDelToday.length; tbi++) {
+            if (toDelToday[tbi] === bStart - 1) {
+              bStart = toDelToday[tbi];
+            } else {
+              blocksT.push({ start: bStart, end: bEnd });
+              bEnd = toDelToday[tbi];
+              bStart = toDelToday[tbi];
+            }
+          }
+          blocksT.push({ start: bStart, end: bEnd });
+          blocksT.forEach(function (b) {
+            shToday.deleteRows(b.start, b.end - b.start + 1);
+          });
+          todayDeleted = toDelToday.length;
+        }
+      }
+    }
+  } catch (todayDelErr) {
+    console.warn('[deactivateTask] Checklist_Today delete failed: ' + todayDelErr.message);
+  }
+
+  // ── 4. Cache clear ────────────────────────────────────────
   _clearSheetCache(MASTER_SHEET_ID, 'Task List');
   _clearSheetCache(CHECKLIST_MASTER_ID, 'Checklist');
+  _clearSheetCache(CHECKLIST_MASTER_ID, 'Checklist_Today');
 
-  return { success: true, checklistRowsDeleted: checklistDeleted };
+  return {
+    success: true,
+    checklistRowsDeleted: checklistDeleted,
+    checklistTodayDeleted: todayDeleted
+  };
 }
 
 function getTaskSetup(empId, passedUser) {
