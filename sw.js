@@ -1,7 +1,7 @@
 // Joolry Daily — Service Worker v8 (2026-10-03)
 // HTML always network-first. Never sticky-cache index.html.
 
-const CACHE = 'joolry-v10-20261003';
+const CACHE = 'joolry-v11-20261003';
 const STATIC = [
   './manifest.json',
   'https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css',
