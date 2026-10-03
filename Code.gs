@@ -7479,15 +7479,21 @@ function getTeamAttendanceStatus(dateStr, passedUser) {
   });
 }
 
-/** Convert "HH:mm" / "HH:mm:ss" / Date-ish string → minutes from midnight */
+/** Convert "HH:mm" / "HH:mm:ss" / Date / sheet value → minutes from midnight */
 function _toMins(t) {
   if (t === null || t === undefined || t === '' || t === '-') return 0;
+  if (typeof t === 'number' && isFinite(t)) {
+    // Sheet time serial (fraction of day) or excel-ish
+    if (t > 0 && t < 1) return Math.round(t * 24 * 60);
+    if (t >= 1 && t < 24) return Math.round(t * 60); // unlikely
+  }
   if (t instanceof Date && !isNaN(t.getTime())) {
     return t.getHours() * 60 + t.getMinutes();
   }
   var s = String(t).trim();
-  // "2026-10-03 10:07:00" or "10:07"
-  var m = s.match(/(\d{1,2}):(\d{2})/);
+  // Prefer time at end: "2026-10-03 10:07:00" or pure "10:07"
+  var m = s.match(/(?:^|\s)(\d{1,2}):(\d{2})(?::\d{2})?\s*$/);
+  if (!m) m = s.match(/(\d{1,2}):(\d{2})/);
   if (!m) return 0;
   return (parseInt(m[1], 10) || 0) * 60 + (parseInt(m[2], 10) || 0);
 }
@@ -7500,9 +7506,19 @@ function _attHoursLabel(ciRaw, coRaw) {
   return Math.floor(diff / 60) + 'h ' + (diff % 60) + 'm';
 }
 
+/** Case-insensitive header index */
+function _hdrIdx(hdrs, name) {
+  var want = String(name || '').trim().toLowerCase();
+  for (var i = 0; i < hdrs.length; i++) {
+    if (String(hdrs[i] || '').trim().toLowerCase() === want) return i;
+  }
+  return -1;
+}
+
 /**
  * Write updates to Daily-Attendance row matching emp_id + date.
- * Always scans the live sheet (no cache) so Mark OUT never misses.
+ * Live sheet only. Fills standard OUT columns: check_out, total_hours,
+ * check_out_ts / check_out_device_ts, status, marked_by.
  */
 function _updateDailyAttRow(empId, date, updates) {
   var ss = _getSpreadsheet(NEW_ATTENDANCE_SHEET_ID);
@@ -7510,13 +7526,13 @@ function _updateDailyAttRow(empId, date, updates) {
   if (!sh || sh.getLastRow() < 2) return false;
   var vals = sh.getDataRange().getValues();
   var hdrs = vals[0].map(function (h) { return String(h || '').trim(); });
-  var iEmp = hdrs.indexOf('emp_id');
-  var iDt = hdrs.indexOf('date');
+  var iEmp = _hdrIdx(hdrs, 'emp_id');
+  var iDt = _hdrIdx(hdrs, 'date');
   if (iEmp < 0 || iDt < 0) return false;
 
-  // Ensure any new columns exist
+  // Ensure columns exist for every key we want to write
   Object.keys(updates || {}).forEach(function (k) {
-    if (hdrs.indexOf(k) < 0) {
+    if (_hdrIdx(hdrs, k) < 0) {
       sh.getRange(1, hdrs.length + 1).setValue(k);
       hdrs.push(k);
     }
@@ -7526,8 +7542,11 @@ function _updateDailyAttRow(empId, date, updates) {
     if (String(vals[i][iEmp] || '').trim() !== String(empId).trim()) continue;
     if (_normDateSafe(vals[i][iDt]) !== date) continue;
     Object.keys(updates).forEach(function (k) {
-      var ci = hdrs.indexOf(k);
-      if (ci >= 0) sh.getRange(i + 1, ci + 1).setValue(updates[k]);
+      var ci = _hdrIdx(hdrs, k);
+      if (ci >= 0) {
+        sh.getRange(i + 1, ci + 1).setNumberFormat('@');
+        sh.getRange(i + 1, ci + 1).setValue(String(updates[k]));
+      }
     });
     SpreadsheetApp.flush();
     _clearSheetCache(NEW_ATTENDANCE_SHEET_ID, 'Daily-Attendance');
@@ -7582,33 +7601,56 @@ function markStaffAttendance(records, passedUser) {
     }
 
     if (exists) {
-      var updates = { status: status };
-      if (checkIn) updates['check_in'] = checkIn;
+      // OUT update: fill check_out + total_hours + timestamps; keep existing IN
+      var updates = {};
+      updates['status'] = status || 'P';
+      // Only write check_in if provided AND we don't already have one
+      var hasExistingIn = existingCi && String(existingCi).trim() && String(existingCi).trim() !== '-';
+      if (checkIn && !hasExistingIn) {
+        updates['check_in'] = checkIn;
+        updates['check_in_ts'] = date + ' ' + checkIn + (checkIn.length === 5 ? ':00' : '');
+        updates['check_in_device_ts'] = updates['check_in_ts'];
+      }
       if (checkOut) {
-        updates['check_out'] = checkOut;
-        updates['check_out_ts'] = date + ' ' + checkOut + (checkOut.length === 5 ? ':00' : '');
-        var hrs = _attHoursLabel(existingCi || checkIn, checkOut);
-        if (hrs) updates['total_hours'] = hrs;
+        var outNorm = checkOut.length === 5 ? checkOut : checkOut.substring(0, 5);
+        updates['check_out'] = outNorm;
+        var outTs = date + ' ' + outNorm + ':00';
+        updates['check_out_ts'] = outTs;
+        updates['check_out_device_ts'] = outTs;
+        var hrs = _attHoursLabel(hasExistingIn ? existingCi : checkIn, outNorm);
+        updates['total_hours'] = hrs || '0h 0m';
       }
       updates['marked_by'] = markedBy;
+      updates['source'] = 'ManagerMark';
       var ok = _updateDailyAttRow(empId, date, updates);
       if (!ok) throw new Error('Could not update attendance for ' + empId + ' on ' + date);
     } else {
-      // Create new record
+      // Create new record — fill IN and OUT columns that the sheet expects
       var attId = 'ATT-' + _hex8();
       var days = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
       var dObj = new Date(date + 'T00:00:00');
       var dayNm = days[dObj.getDay()] || '';
-      var totalH = _attHoursLabel(checkIn, checkOut);
+      var inNorm = checkIn ? (checkIn.length === 5 ? checkIn : checkIn.substring(0, 5)) : '';
+      var outNorm2 = checkOut ? (checkOut.length === 5 ? checkOut : checkOut.substring(0, 5)) : '';
+      var totalH = _attHoursLabel(inNorm, outNorm2);
+      var inTs = inNorm ? date + ' ' + inNorm + ':00' : '';
+      var outTs2 = outNorm2 ? date + ' ' + outNorm2 + ':00' : '';
       var row = {
-        att_id: attId, emp_id: empId, emp_name: empName, dept: dept,
-        date: date, day: dayNm,
-        check_in: checkIn || (status === 'A' ? '-' : ''),
-        check_out: checkOut || (status === 'A' ? '-' : ''),
+        att_id: attId,
+        emp_id: empId,
+        emp_name: empName,
+        dept: dept,
+        date: date,
+        day: dayNm,
+        check_in: inNorm || (status === 'A' ? '-' : ''),
+        check_out: outNorm2 || (status === 'A' ? '-' : ''),
         total_hours: totalH || (status === 'A' ? '-' : ''),
-        check_in_ts: checkIn ? date + ' ' + checkIn + ':00' : '-',
-        check_out_ts: checkOut ? date + ' ' + checkOut + ':00' : '',
-        status: status,
+        device_ts: nowTs,
+        status: status || 'P',
+        check_in_device_ts: inTs,
+        check_out_device_ts: outTs2,
+        check_in_ts: inTs,
+        check_out_ts: outTs2,
         source: 'ManagerMark',
         marked_by: markedBy,
         created_at: nowTs
