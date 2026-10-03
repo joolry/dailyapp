@@ -2310,17 +2310,23 @@ function _generateChecklistForTask(t) {
     return new Date(d);
   }
 
-  // ── Time parts ───────────────────────────────────────────────────────────
-  var taskTimeParts = null;
+  // ── Time parts — store Planned as plain text (same as Task List Day/Date)
+  // Writing JS Date objects causes timezone shift (17:00 → 04:30 etc.)
+  var timeH = 9, timeM = 0;
   if (t.start_time && String(t.start_time).indexOf(':') > -1) {
     var tp = String(t.start_time).split(':');
-    taskTimeParts = { h: parseInt(tp[0], 10) || 0, m: parseInt(tp[1], 10) || 0 };
+    timeH = parseInt(tp[0], 10); if (isNaN(timeH)) timeH = 9;
+    timeM = parseInt(tp[1], 10); if (isNaN(timeM)) timeM = 0;
   }
   function _makePlannedVal(dateObj) {
+    // Always plain string "dd/MM/yyyy HH:mm:ss" — no Date object, no TZ shift
     var d = new Date(dateObj);
-    if (taskTimeParts) d.setHours(taskTimeParts.h, taskTimeParts.m, 0, 0);
-    else d.setHours(9, 0, 0, 0);
-    return d;
+    var dd = ('0' + d.getDate()).slice(-2);
+    var mm = ('0' + (d.getMonth() + 1)).slice(-2);
+    var yyyy = d.getFullYear();
+    var hh = ('0' + timeH).slice(-2);
+    var mi = ('0' + timeM).slice(-2);
+    return dd + '/' + mm + '/' + yyyy + ' ' + hh + ':' + mi + ':00';
   }
 
   // ── Build rows — original style: until end of Working Day Calendar (full coverage) ──
@@ -2480,10 +2486,9 @@ function _generateChecklistForTask(t) {
   var iPlnd = hIdx['Planned'];
   var firstNewRow = sh.getLastRow() + 1;
 
-  // Set proper date-time display format on Planned column BEFORE writing
+  // Plain text format — prevents Sheets from re-interpreting as Date (TZ shift)
   if (iPlnd !== undefined) {
-    sh.getRange(firstNewRow, iPlnd + 1, grid.length, 1)
-      .setNumberFormat('dd/mm/yyyy hh:mm:ss');
+    sh.getRange(firstNewRow, iPlnd + 1, grid.length, 1).setNumberFormat('@STRING@');
   }
   SpreadsheetApp.flush();
 
@@ -2513,7 +2518,12 @@ function _generateChecklistForTask(t) {
         if (pVal instanceof Date) {
           pDateStr = Utilities.formatDate(pVal, tz, 'yyyy-MM-dd');
         } else {
+          // Plain text "dd/MM/yyyy HH:mm:ss" or already normalized
           pDateStr = _normDateSafe(pVal);
+          if (!pDateStr && pVal) {
+            var m = String(pVal).match(/(\d{1,2})[\/\-](\d{1,2})[\/\-](\d{4})/);
+            if (m) pDateStr = m[3] + '-' + ('0' + m[2]).slice(-2) + '-' + ('0' + m[1]).slice(-2);
+          }
         }
         if (pDateStr && weekDatesSet[pDateStr]) {
           todayGrid.push(grid[gi].slice());
@@ -2529,7 +2539,7 @@ function _generateChecklistForTask(t) {
         }
         if (iPlnd !== undefined) {
           shToday.getRange(tFirst, iPlnd + 1, todayGrid.length, 1)
-            .setNumberFormat('dd/mm/yyyy hh:mm:ss');
+            .setNumberFormat('@STRING@');
         }
         shToday.getRange(tFirst, 1, todayGrid.length, numCols).setValues(todayGrid);
         SpreadsheetApp.flush();
