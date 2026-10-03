@@ -2212,24 +2212,27 @@ function _generateChecklistForTask(t) {
     var syn = new Date(startDt.getTime());
     for (var si = 0; si < 280 && workDays.length < 180; si++) {
       var dow = syn.getDay();
-      // Skip Sunday always when skipSun; also skip Sat only when NOT skipSun (strict weekdays)
-      if (dow === 0) { /* Sunday */ }
-      else if (!skipSun && dow === 6) { /* Saturday when full weekdays only */ }
+      if (dow === 0) { /* Sunday always skip */ }
+      else if (!skipSun && dow === 6) { /* Sat only when strict weekdays */ }
       else {
         workDays.push(Utilities.formatDate(syn, _getTimezone(), 'yyyy-MM-dd'));
       }
       syn.setDate(syn.getDate() + 1);
     }
   }
-  if (!workDays.length) throw new Error('Working Day Calendar is empty and fallback failed');
+  // Ultimate safety: if still empty, force at least 90 consecutive days from start
+  if (!workDays.length) {
+    var syn2 = new Date(startDt.getTime());
+    for (var sj = 0; sj < 90; sj++) {
+      workDays.push(Utilities.formatDate(syn2, _getTimezone(), 'yyyy-MM-dd'));
+      syn2.setDate(syn2.getDate() + 1);
+    }
+  }
 
   var lastWorkDay = new Date(workDays[workDays.length - 1]);
   var skipSundays = getConfig('SKIP_SUNDAYS', 'Yes');
-
-  // Helper: get day name for E1st/E2nd etc.
-  function getDayName(num) {
-    return ['sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday'][num] || 'monday';
-  }
+  var tz = _getTimezone();
+  var freq = String(t.frequency || 'D');
 
   // Helper: nth weekday of month
   function nthWeekdayOfMonth(year, month, weekday, n) {
@@ -2244,19 +2247,15 @@ function _generateChecklistForTask(t) {
     }
     return null;
   }
-
-  // Helper: last weekday of month
   function lastWeekdayOfMonth(year, month, weekday) {
-    var d = new Date(year, month + 1, 0); // last day of month
+    var d = new Date(year, month + 1, 0);
     while (d.getDay() !== weekday) d.setDate(d.getDate() - 1);
     return new Date(d);
   }
-
-  // Helper: advance date by frequency
-  function nextDate(d, freq) {
+  function nextDate(d, f) {
     var n = new Date(d);
     var wd = n.getDay();
-    switch (freq) {
+    switch (f) {
       case 'D': n.setDate(n.getDate() + 1); break;
       case 'W': n.setDate(n.getDate() + 7); break;
       case 'F': n.setDate(n.getDate() + 14); break;
@@ -2275,78 +2274,81 @@ function _generateChecklistForTask(t) {
     }
     return n;
   }
-
-  // Helper: find nearest working day going backwards
   function nearestWorkDay(d) {
     var tries = 0;
+    var cand = new Date(d);
     while (tries < 30) {
-      var ds = Utilities.formatDate(d, _getTimezone(), 'yyyy-MM-dd');
+      var ds = Utilities.formatDate(cand, tz, 'yyyy-MM-dd');
       if (workDays.indexOf(ds) >= 0) {
-        // Skip sunday if enabled
-        if (skipSundays === 'Yes' && d.getDay() === 0) {
-          d.setDate(d.getDate() - 1);
+        if (skipSundays === 'Yes' && cand.getDay() === 0) {
+          cand.setDate(cand.getDate() - 1);
           tries++;
           continue;
         }
-        return new Date(d);
+        return new Date(cand);
       }
-      d.setDate(d.getDate() - 1);
+      cand.setDate(cand.getDate() - 1);
       tries++;
     }
-    return d;
+    return new Date(d); // fallback to original
   }
 
-  // Build rows
-  var rows = [];
-  var cur = new Date(startDt);
-  var maxRows = 500;
-  var count = 0;
-  var freq = t.frequency;
-  var tz = _getTimezone();
-
-  // ── Time string to use in Planned column ─────────────────────────────────
-  // If start_time provided (e.g. "10:30"), store date + time as "dd/MM/yyyy HH:mm:ss"
-  // This prevents GAS from storing a raw Date object which shows as "00:00:00 GMT+0530"
+  // ── Time parts ───────────────────────────────────────────────────────────
   var taskTimeParts = null;
-  if (t.start_time && t.start_time.indexOf(':') > -1) {
-    var tp = t.start_time.split(':');
+  if (t.start_time && String(t.start_time).indexOf(':') > -1) {
+    var tp = String(t.start_time).split(':');
     taskTimeParts = { h: parseInt(tp[0], 10) || 0, m: parseInt(tp[1], 10) || 0 };
   }
-
   function _makePlannedVal(dateObj) {
-    // Return actual Date object with task time set (IST)
-    // Google Sheets will store this as a proper date+time value
     var d = new Date(dateObj);
-    if (taskTimeParts) {
-      d.setHours(taskTimeParts.h, taskTimeParts.m, 0, 0);
-    } else {
-      d.setHours(0, 0, 0, 0);
-    }
+    if (taskTimeParts) d.setHours(taskTimeParts.h, taskTimeParts.m, 0, 0);
+    else d.setHours(9, 0, 0, 0);
     return d;
   }
 
-  var repeating = ['D', 'W', 'F', 'M', '2M', 'Q', '4M', 'H', 'Y', 'E1st', 'E2nd', 'E3rd', 'E4th', 'ELast'].indexOf(freq) >= 0;
-
-  if (!repeating) {
-    // One-time task — single row
-    var wd2 = nearestWorkDay(new Date(cur));
-    var taskId = t.uid + '_' + Utilities.formatDate(wd2, tz, 'yyyyMMdd');
-    var plannedVal2 = _makePlannedVal(wd2);
-    rows.push([t.emp_id, t.emp_name, t.email, t.dept, taskId, freq, t.task_name, plannedVal2, '', '', t.email, '', t.uid]);
-  } else {
-    while (cur <= lastWorkDay && count < maxRows) {
-      var frozen = new Date(cur); // save before nearestWorkDay modifies
-      var wd = nearestWorkDay(new Date(cur));
-      var ds = Utilities.formatDate(wd, tz, 'yyyyMMdd');
-      var tid = t.uid + '_' + ds;
-      var plannedVal = _makePlannedVal(wd);
-      rows.push([t.emp_id, t.emp_name, t.email, t.dept, tid, freq, t.task_name, plannedVal, '', '', t.email, '', t.uid]);
-      cur = nextDate(frozen, freq);
-      count++;
-    }
+  // ── Build rows — fixed occurrence counts (reliable, independent of calendar end date) ──
+  var rows = [];
+  var cur = new Date(startDt);
+  var count = 0;
+  // How many occurrences to generate per frequency
+  var targetCount = 1;
+  switch (freq) {
+    case 'D': targetCount = 90; break;   // ~3 months
+    case 'W': targetCount = 26; break;   // ~6 months
+    case 'F': targetCount = 13; break;   // ~6 months
+    case 'M': case '2M': case 'Q': case '4M': case 'H': targetCount = 12; break;
+    case 'Y': targetCount = 3; break;
+    case 'E1st': case 'E2nd': case 'E3rd': case 'E4th': case 'ELast': targetCount = 12; break;
+    default: targetCount = 1;
   }
 
-  if (!rows.length) return;
+  var seenDays = {};
+  var safety = 0;
+  while (count < targetCount && safety < 600) {
+    safety++;
+    var wd = nearestWorkDay(new Date(cur));
+    var ds = Utilities.formatDate(wd, tz, 'yyyyMMdd');
+    if (!seenDays[ds]) {
+      seenDays[ds] = true;
+      rows.push([
+        String(t.emp_id || ''), String(t.emp_name || ''), String(t.email || ''), String(t.dept || ''),
+        String(t.uid) + '_' + ds, freq, String(t.task_name || ''),
+        _makePlannedVal(wd), '', '', String(t.email || ''), '', String(t.uid || '')
+      ]);
+      count++;
+    }
+    cur = nextDate(new Date(wd), freq);
+  }
+
+  // Absolute safety — at least one row
+  if (!rows.length) {
+    var todayDs = Utilities.formatDate(new Date(), tz, 'yyyyMMdd');
+    rows.push([
+      String(t.emp_id || ''), String(t.emp_name || ''), String(t.email || ''), String(t.dept || ''),
+      String(t.uid) + '_' + todayDs, freq, String(t.task_name || ''),
+      _makePlannedVal(new Date()), '', '', String(t.email || ''), '', String(t.uid || '')
+    ]);
+  }
 
   var ss2 = _getSpreadsheet(CHECKLIST_MASTER_ID);
   var sh = ss2.getSheetByName('Checklist');
