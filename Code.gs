@@ -7403,8 +7403,59 @@ function getTeamAttendanceStatus(dateStr, passedUser) {
     attMap[eid].att_id = String(r['att_id'] || '');
   });
 
+  var today = getISTDate();
+  var isPast = date < today;
+
+  // Past day + no attendance → auto Half Day with fixed punch (10:00–14:00)
+  // So unpaid/absent is not silent; managers still see a row.
+  if (isPast) {
+    var FIXED_IN = '10:00';
+    var FIXED_OUT = '14:00';
+    staffList.forEach(function (s) {
+      var a = attMap[s.emp_id];
+      if (a && (a.check_in || a.status)) return; // already has a record
+      try {
+        var days = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
+        var dObj = new Date(date + 'T00:00:00');
+        var dayNm = days[dObj.getDay()] || '';
+        var attId = 'ATT-AUTO-' + _hex8();
+        appendRow(NEW_ATTENDANCE_SHEET_ID, 'Daily-Attendance', {
+          att_id: attId,
+          emp_id: s.emp_id,
+          emp_name: s.name,
+          dept: s.dept,
+          date: date,
+          day: dayNm,
+          check_in: FIXED_IN,
+          check_out: FIXED_OUT,
+          total_hours: '4h 0m',
+          check_in_ts: date + ' ' + FIXED_IN + ':00',
+          check_out_ts: date + ' ' + FIXED_OUT + ':00',
+          status: 'HD',
+          source: 'AutoHalfDay',
+          marked_by: 'System (auto)',
+          created_at: getISTTimestamp()
+        });
+        attMap[s.emp_id] = {
+          check_in: FIXED_IN,
+          check_out: FIXED_OUT,
+          status: 'HD',
+          total_hours: '4h 0m',
+          att_id: attId
+        };
+      } catch (eAuto) {
+        console.warn('[getTeamAttendanceStatus] auto HD failed for ' + s.emp_id + ': ' + eAuto.message);
+      }
+    });
+  }
+
   return staffList.map(function (s) {
     var a = attMap[s.emp_id] || {};
+    var ci = a.check_in || '';
+    var co = a.check_out || '';
+    var hasIn = !!(ci && ci !== '-');
+    var hasOut = !!(co && co !== '-');
+    var hasStatus = !!(a.status && String(a.status).trim());
     return {
       emp_id: s.emp_id,
       name: s.name,
@@ -7413,12 +7464,17 @@ function getTeamAttendanceStatus(dateStr, passedUser) {
       phone: s.phone,
       office_in: s.office_in,
       date: date,
-      check_in: a.check_in || '',
-      check_out: a.check_out || '',
+      check_in: ci,
+      check_out: co,
       status: a.status || '',
       total_hours: a.total_hours || '',
       att_id: a.att_id || '',
-      marked: !!(a.check_in || a.status)
+      // marked = any attendance activity
+      marked: !!(hasIn || hasStatus),
+      // still needs OUT punch (manager or self)
+      needs_checkout: !!(hasIn && !hasOut),
+      // fully closed for the day
+      complete: !!(hasIn && hasOut)
     };
   });
 }
@@ -7450,12 +7506,14 @@ function markStaffAttendance(records, passedUser) {
       return String(r['emp_id'] || '').trim() === empId && _normDateSafe(r['date']) === date;
     });
 
-    if (existing.length && status !== 'A') {
-      // Update check_out if already has check_in
+    if (existing.length) {
+      // Update existing row for THIS date (match att_id when possible)
       var updates = { status: status };
+      if (checkIn) updates['check_in'] = checkIn;
       if (checkOut) {
         updates['check_out'] = checkOut;
-        var ci = _toMins(existing[0]['check_in'] || checkIn);
+        var ciRaw = existing[0]['check_in'] || checkIn;
+        var ci = _toMins(ciRaw);
         var co = _toMins(checkOut);
         if (co > ci) {
           var diffH = Math.floor((co - ci) / 60);
@@ -7463,7 +7521,34 @@ function markStaffAttendance(records, passedUser) {
           updates['total_hours'] = diffH + 'h ' + diffM + 'm';
         }
       }
-      updateRowByField(NEW_ATTENDANCE_SHEET_ID, 'Daily-Attendance', 'emp_id', empId, updates);
+      var attKey = String(existing[0]['att_id'] || '').trim();
+      if (attKey) {
+        updateRowByField(NEW_ATTENDANCE_SHEET_ID, 'Daily-Attendance', 'att_id', attKey, updates);
+      } else {
+        // Fallback: scan sheet for emp_id + date
+        try {
+          var ssA = _getSpreadsheet(NEW_ATTENDANCE_SHEET_ID);
+          var shA = ssA.getSheetByName('Daily-Attendance');
+          if (shA && shA.getLastRow() > 1) {
+            var valsA = shA.getDataRange().getValues();
+            var hdrA = valsA[0].map(function (h) { return String(h || '').trim(); });
+            var iEmp = hdrA.indexOf('emp_id');
+            var iDt = hdrA.indexOf('date');
+            for (var ri = 1; ri < valsA.length; ri++) {
+              if (String(valsA[ri][iEmp] || '').trim() !== empId) continue;
+              if (_normDateSafe(valsA[ri][iDt]) !== date) continue;
+              Object.keys(updates).forEach(function (k) {
+                var ci2 = hdrA.indexOf(k);
+                if (ci2 >= 0) shA.getRange(ri + 1, ci2 + 1).setValue(updates[k]);
+              });
+              break;
+            }
+            _clearSheetCache(NEW_ATTENDANCE_SHEET_ID, 'Daily-Attendance');
+          }
+        } catch (eUp) {
+          updateRowByField(NEW_ATTENDANCE_SHEET_ID, 'Daily-Attendance', 'emp_id', empId, updates);
+        }
+      }
     } else if (!existing.length) {
       // Create new record
       var attId = 'ATT-' + _hex8();
