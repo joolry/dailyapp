@@ -12590,6 +12590,140 @@
   .so-box {
     max-width: calc(100vw - 32px) !important;
   }
+
+  /* ── Mobile layout alignment fixes (dashboard / leave / checklist / headers) ── */
+  .mod-head {
+    flex-direction: column !important;
+    align-items: stretch !important;
+    gap: 10px !important;
+    margin-bottom: 16px !important;
+  }
+  .mod-head .mod-title {
+    font-size: 18px !important;
+  }
+  .mod-head .mod-sub {
+    font-size: 12px !important;
+  }
+  .mod-head .btn,
+  .mod-head-right {
+    width: 100% !important;
+  }
+  .mod-head .btn {
+    justify-content: center !important;
+  }
+  .mod-head-right {
+    display: flex !important;
+    flex-wrap: wrap !important;
+    gap: 8px !important;
+  }
+
+  /* Section titles / checklist headers */
+  .sec-title {
+    font-size: 14px !important;
+    flex-wrap: wrap !important;
+    gap: 6px !important;
+    margin-bottom: 12px !important;
+  }
+  .card .sec-title {
+    padding: 0 !important;
+  }
+
+  /* Task setup grid — single column, full width */
+  .csetup-grid {
+    display: flex !important;
+    flex-direction: column !important;
+    gap: 14px !important;
+  }
+  .csetup-grid > .card {
+    width: 100% !important;
+    max-width: 100% !important;
+  }
+  .csetup-grid .fgrp {
+    width: 100% !important;
+  }
+  .csetup-grid input[type="date"],
+  .csetup-grid input[type="time"],
+  .csetup-grid select,
+  .csetup-grid input[type="text"] {
+    width: 100% !important;
+    max-width: 100% !important;
+    min-height: 44px !important;
+    font-size: 16px !important;
+  }
+  /* Start date + time stack on mobile */
+  .csetup-grid .cs-dt-wrap {
+    flex-direction: column !important;
+    align-items: stretch !important;
+    gap: 8px !important;
+  }
+  .csetup-grid .cs-dt-wrap input[type="date"],
+  .csetup-grid .cs-dt-wrap input[type="time"] {
+    width: 100% !important;
+    min-width: 0 !important;
+  }
+
+  /* Leave request modal form */
+  .leave-req-form {
+    width: 100% !important;
+  }
+  .leave-req-form .fgrp label {
+    font-size: 12px !important;
+    margin-bottom: 6px !important;
+  }
+  .leave-req-form select,
+  .leave-req-form input,
+  .leave-req-form textarea {
+    border-radius: 10px !important;
+  }
+  /* Stack From/To dates on narrow phones */
+  .leave-req-form > div[style*="grid-template-columns"] {
+    grid-template-columns: 1fr 1fr !important;
+  }
+
+  /* Tabs bar — horizontal scroll, no overflow */
+  .tabs, .tab-bar, .mtabs {
+    overflow-x: auto !important;
+    -webkit-overflow-scrolling: touch;
+    flex-wrap: nowrap !important;
+    gap: 6px !important;
+    padding-bottom: 4px !important;
+  }
+  .tabs .tab, .tab-bar .tab, .mtabs .tab {
+    flex-shrink: 0 !important;
+    white-space: nowrap !important;
+    font-size: 12px !important;
+    padding: 8px 12px !important;
+  }
+
+  /* Checklist / task rows */
+  .task-row, .list-row, .leave-row {
+    padding: 12px !important;
+  }
+  .task-row .tr-title, .list-row .lr-title {
+    font-size: 13px !important;
+  }
+
+  /* Filter bars */
+  .fbar {
+    flex-wrap: wrap !important;
+    gap: 8px !important;
+  }
+  .fbar label {
+    font-size: 12px !important;
+  }
+  .fbar input, .fbar select {
+    min-height: 40px !important;
+    font-size: 15px !important;
+  }
+
+  /* Prevent horizontal scroll from wide content */
+  .card, .chart-wrap, .table-card, .tw {
+    max-width: 100% !important;
+    overflow-x: auto !important;
+  }
+  table {
+    min-width: 0 !important;
+  }
 }
 
 </style>
@@ -16236,13 +16370,13 @@
         '<option value="ELast">ELast — Last Weekday of Month</option>' +
         '</optgroup>' +
         '</select></div>' +
-        // Start date + time side by side
-        '<div class="fgrp"><label>Start Date <span class="req">★</span></label>' +
-        '<div style="display:flex;gap:8px;align-items:center">' +
-        '<input type="date" id="csStartDate" value="' + todayDt + '" style="flex:1">' +
-        '<div style="display:flex;flex-direction:column;gap:2px">' +
-        '<label style="font-size:10px;font-weight:700;color:var(--tx3);text-transform:uppercase;margin:0">Task Time <span style="color:var(--R)">★</span> <span style="font-weight:400;color:var(--tx4)">(kitne bje karna hai)</span></label>' +
-        '<input type="time" id="csTime" placeholder="--:--" required style="width:120px">' +
+        // Start date + time — stack-friendly for mobile
+        '<div class="fgrp cs-date-time-row"><label>Start Date <span class="req">★</span></label>' +
+        '<div class="cs-dt-wrap" style="display:flex;gap:8px;align-items:flex-end;flex-wrap:wrap">' +
+        '<input type="date" id="csStartDate" value="' + todayDt + '" style="flex:1;min-width:140px">' +
+        '<div style="display:flex;flex-direction:column;gap:2px;flex:1;min-width:120px">' +
+        '<label style="font-size:10px;font-weight:700;color:var(--tx3);text-transform:uppercase;margin:0">Task Time <span style="color:var(--R)">★</span></label>' +
+        '<input type="time" id="csTime" placeholder="--:--" required style="width:100%;min-width:110px">' +
         '</div></div></div>' +
         '</div>' +
         '<div id="csFreqX"></div>' +
@@ -21266,18 +21400,22 @@
     function _openLeaveReq() {
       _openModal(
         '<i class="fas fa-umbrella-beach" style="color:var(--T)"></i> Submit Leave Request',
-        '<div class="frow">' +
-        '<div class="fgrp"><label>Leave Type <span class="req">★</span></label>' +
-        '<select id="mLvType">' +
+        '<div class="leave-req-form" style="display:flex;flex-direction:column;gap:14px">' +
+        '<div class="fgrp" style="margin:0"><label>Leave Type <span class="req">★</span></label>' +
+        '<select id="mLvType" style="width:100%;min-height:44px;font-size:16px">' +
         '<option>Sick Leave</option><option>Paid Leave</option><option>Casual Leave</option>' +
         '<option>Comp Off</option><option>WFH</option><option>LWP</option>' +
-        '</select>' +
+        '</select></div>' +
+        '<div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">' +
+        '<div class="fgrp" style="margin:0"><label>From Date <span class="req">★</span></label>' +
+        '<input type="date" id="mLvFrom" value="' + _today() + '" style="width:100%;min-height:44px;font-size:16px"></div>' +
+        '<div class="fgrp" style="margin:0"><label>To Date <span class="req">★</span></label>' +
+        '<input type="date" id="mLvTo" value="' + _today() + '" style="width:100%;min-height:44px;font-size:16px"></div>' +
         '</div>' +
-        '</div>' +
-        '<div class="fgrp"><label>From Date <span class="req">★</span></label><input type="date" id="mLvFrom" value="' + _today() + '" style="width:100%"></div>' +
-        '<div class="fgrp"><label>To Date <span class="req">★</span></label><input type="date" id="mLvTo" value="' + _today() + '" style="width:100%"></div>' +
-        '<div class="fgrp"><label>Reason</label><textarea id="mLvReason" rows="3" placeholder="Brief reason for leave..."></textarea></div>' +
-        '<div class="tip"><i class="fas fa-info-circle"></i> Your manager will be notified. Approved leaves appear in your leave calendar.</div>',
+        '<div class="fgrp" style="margin:0"><label>Reason</label>' +
+        '<textarea id="mLvReason" rows="3" placeholder="Brief reason for leave..." style="width:100%;min-height:80px;font-size:16px;resize:vertical"></textarea></div>' +
+        '<div class="tip" style="margin:0;padding:10px 12px;font-size:12px;line-height:1.45"><i class="fas fa-info-circle"></i> Your manager will be notified. Approved leaves appear in your leave calendar.</div>' +
+        '</div>',
         function () {
           var type = document.getElementById('mLvType') ? document.getElementById('mLvType').value : '';
           var from = document.getElementById('mLvFrom') ? document.getElementById('mLvFrom').value : '';
