@@ -18370,10 +18370,12 @@
         '<input type="date" id="tamDate" class="ana-sel" style="max-width:132px" value="' + _teamAttDate + '">' +
         '<div style="width:1px;height:24px;background:var(--bdr);flex-shrink:0"></div>' +
         '<select id="tamDept" class="ana-sel" style="min-width:130px"><option value="all">All Departments</option></select>' +
-        '<select id="tamShow" class="ana-sel" style="min-width:140px">' +
+        '<select id="tamShow" class="ana-sel" style="min-width:160px">' +
+        '<option value="action">Needs Action (IN or OUT pending)</option>' +
         '<option value="unmarked">Not Marked Only</option>' +
+        '<option value="noout">Marked — No Check-out</option>' +
+        '<option value="complete">Fully Complete</option>' +
         '<option value="all">All Staff</option>' +
-        '<option value="marked">Already Marked</option>' +
         '</select>' +
         '<input type="text" id="tamSearch" class="ana-sel" placeholder="Search name..." style="min-width:150px">' +
         '<div style="flex:1"></div>' +
@@ -18440,25 +18442,30 @@
 
       var date = (document.getElementById('tamDate') || {}).value || _teamAttDate;
       var dept = (document.getElementById('tamDept') || {}).value || 'all';
-      var showF = (document.getElementById('tamShow') || {}).value || 'unmarked';
+      var showF = (document.getElementById('tamShow') || {}).value || 'action';
       var q = ((document.getElementById('tamSearch') || {}).value || '').toLowerCase().trim();
 
       // Update stats
       var totAll = _teamAttData.length;
       var totMarked = _teamAttData.filter(function (r) {return r.marked;}).length;
       var totUnmark = totAll - totMarked;
+      var totNoOut = _teamAttData.filter(function (r) {return r.needs_checkout;}).length;
       var statsEl = document.getElementById('tamStats');
       if (statsEl) {
         statsEl.innerHTML =
-          '<div style="flex:1;padding:10px;background:var(--Gl);border-radius:10px;text-align:center"><div style="font-size:20px;font-weight:900;color:var(--G)">' + totMarked + '</div><div style="font-size:10px;font-weight:800;color:var(--G);text-transform:uppercase">Marked</div></div>' +
+          '<div style="flex:1;padding:10px;background:var(--Gl);border-radius:10px;text-align:center"><div style="font-size:20px;font-weight:900;color:var(--G)">' + totMarked + '</div><div style="font-size:10px;font-weight:800;color:var(--G);text-transform:uppercase">Marked IN</div></div>' +
+          '<div style="flex:1;padding:10px;background:#fef3c7;border-radius:10px;text-align:center"><div style="font-size:20px;font-weight:900;color:#d97706">' + totNoOut + '</div><div style="font-size:10px;font-weight:800;color:#d97706;text-transform:uppercase">No OUT</div></div>' +
           '<div style="flex:1;padding:10px;background:var(--Rl);border-radius:10px;text-align:center"><div style="font-size:20px;font-weight:900;color:var(--R)">' + totUnmark + '</div><div style="font-size:10px;font-weight:800;color:var(--R);text-transform:uppercase">Not Marked</div></div>' +
           '<div style="flex:1;padding:10px;background:var(--Pl);border-radius:10px;text-align:center"><div style="font-size:20px;font-weight:900;color:var(--P)">' + totAll + '</div><div style="font-size:10px;font-weight:800;color:var(--P);text-transform:uppercase">Total</div></div>';
       }
 
-      // Filter
+      // Filter — default "action" keeps IN-without-OUT visible
       var rows = _teamAttData.filter(function (r) {
         if (dept !== 'all' && r.dept !== dept) return false;
+        if (showF === 'action' && r.marked && !r.needs_checkout) return false;
         if (showF === 'unmarked' && r.marked) return false;
+        if (showF === 'noout' && !r.needs_checkout) return false;
+        if (showF === 'complete' && !r.complete) return false;
         if (showF === 'marked' && !r.marked) return false;
         if (q && (r.name + ' ' + r.dept).toLowerCase().indexOf(q) < 0) return false;
         return true;
@@ -18480,7 +18487,7 @@
       var bulkBar = document.getElementById('tamBulkBar');
       var bulkLbl = document.getElementById('tamBulkLbl');
       if (bulkBar) {
-        if (unmarkedFilt.length && (showF === 'unmarked' || showF === 'all')) {
+        if (unmarkedFilt.length && (showF === 'unmarked' || showF === 'all' || showF === 'action')) {
           bulkBar.style.display = 'flex';
           if (bulkLbl) bulkLbl.textContent = unmarkedFilt.length + ' unmarked staff — mark all as Present?';
         } else {
@@ -18492,7 +18499,7 @@
         list.innerHTML = '<div class="empty-state" style="padding:28px;text-align:center">' +
           '<i class="fas fa-user-check" style="font-size:32px;opacity:.15;color:var(--G)"></i>' +
           '<div style="margin-top:10px;font-size:14px;color:var(--tx3);font-weight:600">' +
-          (showF === 'unmarked' ? 'All staff attendance is marked ✓' : 'No staff match this filter') +
+          (showF === 'action' || showF === 'unmarked' ? 'All staff have complete attendance ✓' : 'No staff match this filter') +
           '</div></div>';
         return;
       }
@@ -18542,14 +18549,27 @@
             '<div style="font-weight:800;font-size:13px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">' + _esc(r.name) + '</div>' +
             '<div style="font-size:11px;color:var(--tx3)">' + _esc(r.role) + (r.phone ? '  ·  ' + _esc(r.phone) : '') + '</div>' +
             '</div>' +
-            // Already marked — show status + times
-            (marked
+            // Marked + has OUT → read-only; Marked no OUT → still allow OUT; Not marked → full form
+            (marked && !r.needs_checkout
               ? '<div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap">' +
               '<span style="padding:3px 10px;border-radius:20px;font-size:11.5px;font-weight:800;background:' + stBg + ';color:' + stFc + '">' + stLbl + '</span>' +
               (r.check_in ? '<span style="font-size:12px;font-weight:700;color:var(--G)"><i class="fas fa-arrow-right-to-bracket"></i> ' + _esc(r.check_in) + '</span>' : '') +
               (r.check_out ? '<span style="font-size:12px;font-weight:700;color:var(--R)"><i class="fas fa-arrow-right-from-bracket"></i> ' + _esc(r.check_out) + '</span>' : '') +
               '</div>'
-              // Not marked — IN + OUT + Status + Mark button
+              : marked && r.needs_checkout
+              ? '<div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap">' +
+              '<span style="padding:3px 10px;border-radius:20px;font-size:11px;font-weight:800;background:#fef3c7;color:#d97706">OUT pending</span>' +
+              (r.check_in ? '<span style="font-size:12px;font-weight:700;color:var(--G)"><i class="fas fa-arrow-right-to-bracket"></i> ' + _esc(r.check_in) + '</span>' : '') +
+              '<input type="hidden" id="ti_' + r.emp_id + '" value="' + _esc(r.check_in || '') + '">' +
+              '<div style="display:flex;align-items:center;gap:4px">' +
+              '<span style="font-size:10.5px;font-weight:700;color:var(--R)"><i class="fas fa-sign-out-alt"></i></span>' +
+              '<input type="time" id="to_' + r.emp_id + '" value="' + curTime + '" style="padding:4px 7px;border-radius:7px;border:1.5px solid var(--bdr);background:var(--bg);font-size:12px;color:var(--tx);width:90px">' +
+              '</div>' +
+              '<select id="st_' + r.emp_id + '" style="padding:4px 8px;border-radius:7px;border:1.5px solid var(--bdr);background:var(--bg);font-size:12px;color:var(--tx)">' +
+              '<option value="P"' + (r.status === 'P' ? ' selected' : '') + '>Present</option><option value="HD"' + (r.status === 'HD' ? ' selected' : '') + '>Half Day</option><option value="A">Absent</option>' +
+              '</select>' +
+              '<button id="mb_' + r.emp_id + '" onclick="_tamMark1(\'' + _esc(r.emp_id) + '\',\'' + _esc(r.name) + '\',\'' + _esc(d) + '\')" style="padding:5px 12px;border-radius:7px;background:#d97706;color:#fff;font-size:12px;font-weight:800;border:none;cursor:pointer;white-space:nowrap"><i class="fas fa-sign-out-alt"></i> Mark OUT</button>' +
+              '</div>'
               : '<div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap">' +
               '<div style="display:flex;align-items:center;gap:4px">' +
               '<span style="font-size:10.5px;font-weight:700;color:var(--G)"><i class="fas fa-sign-in-alt"></i></span>' +
@@ -18646,9 +18666,16 @@
         date: _teamAttDate, check_in: inT, check_out: outT, status: st
       }]], function () {
         _teamAttData.forEach(function (r) {
-          if (r.emp_id === empId) {r.marked = true; r.check_in = inT; r.check_out = outT; r.status = st;}
+          if (r.emp_id === empId) {
+            r.marked = true;
+            r.check_in = inT || r.check_in;
+            r.check_out = outT || r.check_out;
+            r.status = st;
+            r.needs_checkout = !!(r.check_in && !r.check_out);
+            r.complete = !!(r.check_in && r.check_out);
+          }
         });
-        _toast('✓ ' + empName + ' marked ' + (st === 'P' ? 'Present' : st === 'HD' ? 'Half Day' : 'Absent'), 'ok');
+        _toast('✓ ' + empName + (outT ? ' OUT saved' : ' marked ' + (st === 'P' ? 'Present' : st === 'HD' ? 'Half Day' : 'Absent')), 'ok');
         _renderTeamList();
       }, function (e) {
         _toast(e.message || 'Mark failed', 'err');
@@ -28248,13 +28275,13 @@
     _toast._t = null;
 
     if ('serviceWorker' in navigator) {
-      navigator.serviceWorker.register('sw.js?v=10').then(function (reg) {
+      navigator.serviceWorker.register('sw.js?v=11').then(function (reg) {
         reg.update();
         // Purge any leftover old caches from previous SW versions
         if (window.caches) {
           caches.keys().then(function (keys) {
             keys.forEach(function (k) {
-              if (k.indexOf('joolry-v10') !== 0) caches.delete(k);
+              if (k.indexOf('joolry-v11') !== 0) caches.delete(k);
             });
           });
         }
