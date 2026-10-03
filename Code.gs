@@ -4346,9 +4346,8 @@ function getTodayCelebrations(passedUser) {
       Logger.log('[Celebrations] ✅ MATCH: ' + name + ' - ' + label);
     }
 
+    // Client policy: birthdays only — no anniversaries / work anniversaries
     check(d['Birth Date'], 'birthday', '🎂', 'Birthday');
-    check(d['Anniversary Date'], 'anniversary', '💍', 'Anniversary');
-    check(d['Joining Date'], 'joining', '🏢', 'Work Anniversary');
   });
 
   Logger.log('[Celebrations] Total found: ' + results.length);
@@ -4383,6 +4382,105 @@ function sendCelebrationWishes() {
   } catch (e) {
     Logger.log('sendCelebrationWishes error: ' + e.message);
   }
+}
+
+// ── Leave / WO / PTO Policy helpers (Joolry client policy) ─────────────────
+// Weekly Off entitlement = number of Sundays in the month (can be taken any day).
+// Salary fixed on 30-day month: daily = monthly / 30.
+// Extra pay = (WO entitlement − WO taken) × daily rate when positive.
+// Excess WO beyond entitlement → covered by PTO first, else Unpaid.
+// Named staff get 11 PTO/year (or Doer List "PTO Annual" column).
+
+var _PTO_DEFAULT_NAMES = {
+  'shehnaz': 11, 'anand': 11, 'puja': 11, 'prakruti': 11, 'shailesh': 11, 'atul': 11
+};
+
+function _sundaysInMonth(year, month1to12) {
+  var count = 0;
+  var days = new Date(year, month1to12, 0).getDate();
+  for (var d = 1; d <= days; d++) {
+    if (new Date(year, month1to12 - 1, d).getDay() === 0) count++;
+  }
+  return count;
+}
+
+function _normLeaveType(t) {
+  var s = String(t || '').trim().toLowerCase();
+  if (s === 'weekly off' || s === 'week off' || s === 'wo' || s === 'w/o' || s === 'weeklyoff') return 'Weekly Off';
+  if (s === 'pto' || s === 'paid time off' || s === 'paid leave' || s === 'pl') return 'PTO';
+  if (s === 'unpaid' || s === 'lwp' || s === 'leave without pay' || s === 'unpaid leave') return 'Unpaid';
+  if (s === 'sick leave' || s === 'sick') return 'Sick Leave';
+  if (s === 'casual leave' || s === 'cl') return 'Casual Leave';
+  return String(t || '').trim() || 'Other';
+}
+
+function _monthlySalaryFromDoer(d) {
+  return Number(d['Basic Salary'] || d['Basic'] || d['basic_salary'] || d['Salary'] || d['basic'] || d['BASIC'] || 0);
+}
+
+function _ptoAnnualFromDoer(d) {
+  var col = Number(d['PTO Annual'] || d['Annual PTO'] || d['PTO'] || d['pto_annual'] || 0);
+  if (col > 0) return col;
+  var name = String(d['Name'] || '').trim().toLowerCase();
+  // Match first name token
+  var first = name.split(/\s+/)[0] || '';
+  if (_PTO_DEFAULT_NAMES[first] !== undefined) return _PTO_DEFAULT_NAMES[first];
+  // Full name contains
+  for (var k in _PTO_DEFAULT_NAMES) {
+    if (name.indexOf(k) >= 0) return _PTO_DEFAULT_NAMES[k];
+  }
+  return 0;
+}
+
+function _countApprovedLeaveDaysByType(empId, monthYear /* yyyy-MM or '' for year */) {
+  var counts = { 'Weekly Off': 0, 'PTO': 0, 'Unpaid': 0, 'Sick Leave': 0, 'Casual Leave': 0, 'Other': 0 };
+  try {
+    getSheetData(NEW_ATTENDANCE_SHEET_ID, 'leave_requests').forEach(function (l) {
+      if (String(l['status'] || '').trim() !== 'Approved') return;
+      if (String(l['emp_id'] || '').trim() !== String(empId)) return;
+      var fd = _normDateSafe(l['from_date'] || '');
+      var td = _normDateSafe(l['to_date'] || '');
+      if (!fd || !td) return;
+      var lt = _normLeaveType(l['leave_type']);
+      var cur = new Date(parseInt(fd.substring(0, 4), 10), parseInt(fd.substring(5, 7), 10) - 1, parseInt(fd.substring(8, 10), 10));
+      var end = new Date(parseInt(td.substring(0, 4), 10), parseInt(td.substring(5, 7), 10) - 1, parseInt(td.substring(8, 10), 10));
+      while (cur <= end) {
+        var ds = Utilities.formatDate(cur, 'Asia/Kolkata', 'yyyy-MM-dd');
+        var include = true;
+        if (monthYear && monthYear.length === 7) include = (ds.substring(0, 7) === monthYear);
+        else if (monthYear && monthYear.length === 4) include = (ds.substring(0, 4) === monthYear);
+        if (include) {
+          if (counts[lt] === undefined) counts['Other'] += 1;
+          else counts[lt] += 1;
+        }
+        cur.setDate(cur.getDate() + 1);
+      }
+    });
+  } catch (e) { }
+  return counts;
+}
+
+function _calcWoPayroll(monthlySalary, woEntitlement, woTaken, ptoTakenMonth, ptoRemainingBefore) {
+  var daily = monthlySalary / 30;
+  var woWorked = Math.max(0, woEntitlement - woTaken);
+  var extraPay = Math.round(woWorked * daily);
+  var excessWo = Math.max(0, woTaken - woEntitlement);
+  var ptoCover = Math.min(excessWo, Math.max(0, ptoRemainingBefore));
+  var unpaidFromExcess = excessWo - ptoCover;
+  var unpaidDeduct = Math.round(unpaidFromExcess * daily);
+  var net = Math.round(monthlySalary + extraPay - unpaidDeduct);
+  return {
+    daily_rate: Math.round(daily),
+    wo_entitlement: woEntitlement,
+    wo_taken: woTaken,
+    wo_worked: woWorked,
+    extra_pay: extraPay,
+    excess_wo: excessWo,
+    pto_cover: ptoCover,
+    unpaid_from_excess: unpaidFromExcess,
+    unpaid_deduction: unpaidDeduct,
+    net_salary: Math.max(0, net)
+  };
 }
 
 // ── Leave Management ──────────────────────────────────────────────────────
@@ -4434,33 +4532,52 @@ function getLeaveSummary(empId, monthYear, passedUser) {
   var empCode = empId || _myCode(user);
   if (empCode !== _myCode(user) && !isManager(user)) throw new Error('PERMISSION_DENIED');
 
-  var reqs = getSheetData(NEW_ATTENDANCE_SHEET_ID, 'leave_requests').filter(function (r) {
-    var ok = String(r.emp_id) === String(empCode);
-    // monthYear filter only when explicitly provided (null = cumulative all-time balance)
-    if (monthYear) ok = ok && String(r.from_date || '').substring(0, 7) === monthYear;
-    return ok;
-  });
+  var today = getISTDate();
+  var month = monthYear || today.substring(0, 7);
+  var yr = parseInt(month.split('-')[0], 10);
+  var mo = parseInt(month.split('-')[1], 10);
+
+  var counts = _countApprovedLeaveDaysByType(empCode, month);
+  var woEnt = _sundaysInMonth(yr, mo);
+
+  // Pending / rejected counts from requests
+  var pending = 0, rejected = 0;
+  try {
+    getSheetData(NEW_ATTENDANCE_SHEET_ID, 'leave_requests').forEach(function (r) {
+      if (String(r.emp_id) !== String(empCode)) return;
+      var fd = _normDateSafe(r.from_date || '');
+      if (month && fd && fd.substring(0, 7) !== month) return;
+      var st = String(r.status || '');
+      if (st === 'Pending') pending++;
+      if (st === 'Rejected') rejected++;
+    });
+  } catch (e) { }
+
+  var woTaken = counts['Weekly Off'] || 0;
+  var ptoTaken = counts['PTO'] || 0;
+  var unpaid = counts['Unpaid'] || 0;
 
   var summary = {
-    emp_id: empCode, month_year: monthYear || '',
-    sick_leave: 0, paid_leave: 0, casual_leave: 0, comp_off: 0, wfh: 0, lwp: 0,
-    total_approved: 0, total_pending: 0, total_rejected: 0
+    emp_id: empCode,
+    month_year: month,
+    // Legacy fields (UI still reads some)
+    sick_leave: counts['Sick Leave'] || 0,
+    paid_leave: ptoTaken,
+    casual_leave: counts['Casual Leave'] || 0,
+    comp_off: 0,
+    wfh: 0,
+    lwp: unpaid,
+    // Policy fields
+    week_off_entitlement: woEnt,
+    week_off_taken: woTaken,
+    week_off_remaining: Math.max(0, woEnt - woTaken),
+    week_off_worked: Math.max(0, woEnt - woTaken),
+    pto_taken: ptoTaken,
+    unpaid_taken: unpaid,
+    total_approved: woTaken + ptoTaken + unpaid + (counts['Sick Leave'] || 0) + (counts['Casual Leave'] || 0),
+    total_pending: pending,
+    total_rejected: rejected
   };
-
-  reqs.forEach(function (r) {
-    var days = Number(r.num_days || 1);
-    var type = String(r.leave_type || '');
-    var status = String(r.status || '');
-    if (status === 'Pending') { summary.total_pending++; return; }
-    if (status === 'Rejected') { summary.total_rejected++; return; }
-    if (type === 'Sick Leave') summary.sick_leave += days;
-    else if (type === 'Paid Leave') summary.paid_leave += days;
-    else if (type === 'Casual Leave') summary.casual_leave += days;
-    else if (type === 'Comp Off') summary.comp_off += days;
-    else if (type === 'WFH') summary.wfh += days;
-    else if (type === 'LWP') summary.lwp += days;
-    summary.total_approved += days;
-  });
 
   return [summary];
 }
@@ -4571,10 +4688,47 @@ function getLeaveBalance(passedUser) {
   var user = verifyUser(passedUser);
   if (!user) throw new Error('NOT_AUTHENTICATED');
   var empCode = _myCode(user);
-  var currMonth = Utilities.formatDate(new Date(), _getTimezone(), 'yyyy-MM');
-  // Return same format as getLeaveSummary for current month
-  var result = getLeaveSummary(empCode, currMonth, passedUser);
-  return result && result[0] ? result[0] : {};
+  var today = getISTDate();
+  var currMonth = today.substring(0, 7);
+  var year = today.substring(0, 4);
+  var yr = parseInt(year, 10);
+  var mo = parseInt(currMonth.split('-')[1], 10);
+
+  var monthSum = getLeaveSummary(empCode, currMonth, passedUser);
+  var base = monthSum && monthSum[0] ? monthSum[0] : {};
+
+  // Year-to-date PTO taken
+  var ytd = _countApprovedLeaveDaysByType(empCode, year);
+  var ptoTakenYtd = ytd['PTO'] || 0;
+
+  var monthlySalary = 0;
+  var ptoAnnual = 0;
+  try {
+    var doers = getSheetData(MASTER_SHEET_ID, 'Doer List');
+    for (var i = 0; i < doers.length; i++) {
+      if (String(doers[i]['Emp ID'] || '').trim() === String(empCode)) {
+        monthlySalary = _monthlySalaryFromDoer(doers[i]);
+        ptoAnnual = _ptoAnnualFromDoer(doers[i]);
+        break;
+      }
+    }
+  } catch (e) { }
+
+  var ptoRemaining = Math.max(0, ptoAnnual - ptoTakenYtd);
+  var woEnt = _sundaysInMonth(yr, mo);
+  var woTaken = base.week_off_taken || 0;
+  var pay = _calcWoPayroll(monthlySalary, woEnt, woTaken, base.pto_taken || 0, ptoRemaining);
+
+  base.pto_entitled = ptoAnnual;
+  base.pto_taken_ytd = ptoTakenYtd;
+  base.pto_remaining = ptoRemaining;
+  base.monthly_salary = monthlySalary;
+  base.daily_rate = pay.daily_rate;
+  base.extra_pay_estimate = pay.extra_pay;
+  base.unpaid_deduction_estimate = pay.unpaid_deduction;
+  base.net_estimate = pay.net_salary;
+  base.policy_note = 'WO entitlement = Sundays in month. Salary on 30-day basis. Extra pay for unused WO.';
+  return base;
 }
 
 // ── Regularization Requests ───────────────────────────────────────────────────
@@ -8018,16 +8172,53 @@ function getPayrollSummary(monthYear, deptFlt, passedUser) {
       });
     });
 
-    var payableDays = presentDays + leaveDays;
-    var deductDays = absentDays + lwpDays;
-    var perDaySalary = totalWorkingDays > 0
-      ? (doer.basic_salary + doer.hra + doer.conveyance + doer.other_allowances) / totalWorkingDays
-      : 0;
-    var lwpDeduction = Math.round(perDaySalary * deductDays);
+    // ── Joolry client policy: fixed 30-day salary + Weekly Off entitlement ──
+    // WO entitlement = Sundays in month (can be taken any day via "Weekly Off" leave)
+    // Extra pay when WO taken < entitlement; excess WO → PTO then Unpaid
+    var monthlySalary = doer.basic_salary + doer.hra + doer.conveyance + doer.other_allowances;
+    if (!monthlySalary) monthlySalary = doer.basic_salary;
 
-    var gross = doer.basic_salary + doer.hra + doer.conveyance + doer.other_allowances;
+    var woEntitlement = _sundaysInMonth(yr, mo + 1);
+
+    // Count leave types from approved leave map for this emp
+    var woTaken = 0, ptoTaken = 0, unpaidLeaveDays = 0, otherPaidLeave = 0;
+    Object.keys(empLeave).forEach(function (ds) {
+      var lt = _normLeaveType(empLeave[ds]);
+      if (lt === 'Weekly Off') woTaken++;
+      else if (lt === 'PTO') ptoTaken++;
+      else if (lt === 'Unpaid') unpaidLeaveDays++;
+      else otherPaidLeave++;
+    });
+    // Absences without leave = unpaid
+    unpaidLeaveDays += absentDays;
+
+    // PTO remaining (year) before this month's excess cover
+    var ptoAnnual = 0;
+    try {
+      var rawDoer = doers.filter(function (x) { return String(x['Emp ID'] || '').trim() === eid; })[0];
+      if (rawDoer) ptoAnnual = _ptoAnnualFromDoer(rawDoer);
+    } catch (eP) { }
+    var ytdPto = 0;
+    try {
+      ytdPto = (_countApprovedLeaveDaysByType(eid, String(yr))['PTO'] || 0);
+      // Don't double-count current month PTO already in ytd when covering excess
+    } catch (eY) { }
+    var ptoRemainingBefore = Math.max(0, ptoAnnual - ytdPto);
+
+    var pol = _calcWoPayroll(monthlySalary, woEntitlement, woTaken, ptoTaken, ptoRemainingBefore);
+    // Also deduct pure unpaid leave days (not from WO excess — already in pol)
+    // If unpaidLeaveDays includes absences, add deduction for those not already in excess
+    var extraUnpaidDays = Math.max(0, unpaidLeaveDays - pol.unpaid_from_excess);
+    var extraUnpaidDed = Math.round(extraUnpaidDays * pol.daily_rate);
+
+    var gross = monthlySalary;
+    var lwpDeduction = pol.unpaid_deduction + extraUnpaidDed;
     var totalDed = doer.pf_deduction + doer.esi_deduction + doer.tds + doer.other_deductions + lwpDeduction;
-    var net = Math.max(0, gross - totalDed);
+    // Net = monthly + extra WO pay − deductions
+    var net = Math.max(0, monthlySalary + pol.extra_pay - totalDed);
+
+    var payableDays = presentDays + otherPaidLeave + ptoTaken + Math.min(woTaken, woEntitlement);
+    var deductDays = pol.unpaid_from_excess + extraUnpaidDays;
 
     return {
       emp_id: eid,
@@ -8048,15 +8239,23 @@ function getPayrollSummary(monthYear, deptFlt, passedUser) {
       lwp_deduction: lwpDeduction,
       total_deductions: totalDed,
       net_salary: net,
+      // Policy fields
+      week_off_entitlement: woEntitlement,
+      week_off_taken: woTaken,
+      week_off_worked: pol.wo_worked,
+      extra_pay: pol.extra_pay,
+      pto_taken: ptoTaken,
+      pto_annual: ptoAnnual,
+      unpaid_days: deductDays,
       total_working_days: totalWorkingDays,
       present_days: presentDays,
       absent_days: absentDays,
       leave_days: leaveDays,
-      lwp_days: lwpDays,
-      week_off_days: weekOffDays,
+      lwp_days: deductDays,
+      week_off_days: woTaken,
       holiday_days: holidayDays,
       payable_days: payableDays,
-      per_day_salary: Math.round(perDaySalary),
+      per_day_salary: pol.daily_rate,
       daily_log: dailyLog
     };
   });
