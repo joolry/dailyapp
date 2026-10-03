@@ -12747,7 +12747,7 @@
 }
 
 /* ══════════════════════════════════════════════════════════════════════════
-   FINAL MOBILE FORCE-ALIGN (highest priority — overrides everything above)
+   FINAL MOBILE FORCE-ALIGN — recoveryapp-inspired (highest priority)
    ══════════════════════════════════════════════════════════════════════════ */
 @media (max-width: 640px) {
   html, body {
@@ -12761,53 +12761,142 @@
     overflow-x: hidden !important;
   }
 
-  .mod-head {
+  /* Content — edge padding + space for bottom nav */
+  #content, .content {
+    padding: 12px 12px calc(100px + env(safe-area-inset-bottom, 0px)) !important;
+    max-width: 100% !important;
+    width: 100% !important;
+    box-sizing: border-box !important;
+  }
+  #content .card, #content > div, .kpi, .att-punch-card, .sec-card, .lower-card {
+    max-width: 100% !important;
+    width: 100% !important;
+    box-sizing: border-box !important;
+  }
+
+  /* Page / module headers stack like recovery .page-hd */
+  .mod-head, .page-hd, .sec-title {
     display: flex !important;
     flex-direction: column !important;
     align-items: stretch !important;
     gap: 10px !important;
     width: 100% !important;
   }
-  .mod-head > div:first-child { width: 100% !important; }
-  .mod-head .btn, .mod-head button { width: 100% !important; min-height: 44px !important; }
+  .mod-head > div:first-child,
+  .mod-head-right { width: 100% !important; }
+  .mod-head .btn, .mod-head button,
+  .page-actions .btn {
+    width: 100% !important;
+    min-height: 44px !important;
+    justify-content: center !important;
+  }
+  .sec-title { font-size: 14px !important; flex-wrap: wrap !important; }
 
-  .frow, .frow-3, .frow-4, .form-g, .form-row {
+  /* Forms — single column (recovery .form-row → 1fr) */
+  .frow, .frow-3, .frow-4, .form-g, .form-row, .form-row-3 {
     display: flex !important;
     flex-direction: column !important;
     gap: 12px !important;
     width: 100% !important;
   }
-  .fgrp, .frow .fgrp {
+  .fgrp, .frow .fgrp, .form-group {
     width: 100% !important;
     max-width: 100% !important;
     min-width: 0 !important;
     flex: 0 0 auto !important;
   }
   .fgrp input, .fgrp select, .fgrp textarea,
-  input[type="date"], input[type="time"], input[type="text"], select, textarea {
+  .form-input,
+  input[type="date"], input[type="time"], input[type="text"],
+  input[type="email"], input[type="password"], input[type="number"],
+  select, textarea {
     width: 100% !important;
     max-width: 100% !important;
     min-height: 44px !important;
-    font-size: 16px !important;
+    font-size: 16px !important; /* no iOS zoom */
     box-sizing: border-box !important;
   }
 
-  .leave-req-form { width: 100% !important; max-width: 100% !important; }
-  .leave-req-form .frow { flex-direction: column !important; width: 100% !important; }
-  .leave-req-form .fgrp { width: 100% !important; }
+  /* Leave + task setup forms */
+  .leave-req-form, .csetup-grid {
+    width: 100% !important;
+    max-width: 100% !important;
+  }
+  .leave-req-form .frow,
+  .leave-req-form .fgrp { width: 100% !important; flex-direction: column !important; }
   .leave-req-form .tip {
     font-size: 11px !important;
-    line-height: 1.4 !important;
+    line-height: 1.45 !important;
     word-break: break-word !important;
     white-space: normal !important;
   }
+  .csetup-grid {
+    display: flex !important;
+    flex-direction: column !important;
+    gap: 14px !important;
+  }
+  .csetup-grid > * { width: 100% !important; max-width: 100% !important; }
+  .cs-dt-wrap {
+    flex-direction: column !important;
+    align-items: stretch !important;
+    gap: 10px !important;
+  }
+  .cs-dt-wrap input { width: 100% !important; }
 
-  .modal-ov.on {
+  /* Dashboard KPI grid */
+  .krow, #dashKrow {
+    display: grid !important;
+    grid-template-columns: 1fr 1fr !important;
+    gap: 10px !important;
+    width: 100% !important;
+  }
+  .kpi {
+    padding: 14px !important;
+    min-width: 0 !important;
+  }
+  .kpi-val { font-size: 22px !important; }
+  .kpi-lbl { font-size: 11px !important; }
+
+  /* Cards */
+  .card, .card-sm, .att-punch-card {
+    padding: 14px !important;
+    border-radius: 14px !important;
+  }
+
+  /* Tables — horizontal scroll (recovery style) */
+  .tbl-wrap, .table-wrap, .tbl-scroll {
+    width: 100% !important;
+    overflow-x: auto !important;
+    -webkit-overflow-scrolling: touch !important;
+    border-radius: 10px !important;
+  }
+  table.tbl, table.data-table, .tbl {
+    min-width: 560px !important;
+    font-size: 12px !important;
+  }
+  .tbl td, .tbl th,
+  table.tbl td, table.tbl th {
+    padding: 9px 10px !important;
+  }
+
+  /* Filter pills — horizontal scroll */
+  .filter-row, .pills, .chip-row {
+    flex-wrap: nowrap !important;
+    overflow-x: auto !important;
+    -webkit-overflow-scrolling: touch !important;
+    padding-bottom: 4px !important;
+    scrollbar-width: none !important;
+  }
+  .filter-row::-webkit-scrollbar,
+  .pills::-webkit-scrollbar { display: none !important; }
+
+  /* Modals = bottom sheet (recovery .modal-overlay / .modal-box) */
+  .modal-ov.on, .modal-overlay.on, .modal-overlay.open {
     align-items: flex-end !important;
     justify-content: flex-end !important;
     padding: 0 !important;
   }
-  .modal-box.open {
+  .modal-box.open, .modal-box.wide.open, .modal-box.xl.open {
     width: 100% !important;
     max-width: 100% !important;
     max-height: 92svh !important;
@@ -12817,50 +12906,57 @@
     right: 0 !important;
     bottom: 0 !important;
     transform: none !important;
+    animation: joolryModalUp .28s cubic-bezier(0.34, 1.2, 0.64, 1) !important;
   }
-  .modal-title { font-size: 16px !important; padding: 16px 16px 12px !important; }
-  .modal-body { padding: 12px 16px 16px !important; overflow-x: hidden !important; }
-  .modal-foot {
-    padding: 12px 16px calc(12px + env(safe-area-inset-bottom,0px)) !important;
+  @keyframes joolryModalUp {
+    from { opacity: 0; transform: translateY(40px); }
+    to   { opacity: 1; transform: translateY(0); }
+  }
+  .modal-title, .modal-hd {
+    font-size: 16px !important;
+    padding: 14px 18px !important;
+  }
+  .modal-body {
+    padding: 16px 18px !important;
+    overflow-x: hidden !important;
+  }
+  .modal-foot, .modal-ft {
+    padding: 14px 18px calc(14px + env(safe-area-inset-bottom, 0px)) !important;
     flex-direction: column !important;
     gap: 8px !important;
   }
-  .modal-foot .btn { width: 100% !important; min-height: 46px !important; }
-
-  #content, .content {
-    padding: 10px 10px calc(100px + env(safe-area-inset-bottom, 0px)) !important;
-    max-width: 100% !important;
+  .modal-foot .btn, .modal-ft .btn {
     width: 100% !important;
-    box-sizing: border-box !important;
-  }
-  #content .card, #content > div, .kpi, .att-punch-card {
-    max-width: 100% !important;
-    box-sizing: border-box !important;
+    min-height: 46px !important;
+    justify-content: center !important;
+    flex: 1 !important;
   }
 
+  /* Bottom nav safe area */
+  .mob-nav {
+    padding-bottom: env(safe-area-inset-bottom, 0px) !important;
+  }
+
+  /* Hide desktop-only bits */
+  .hide-sm, .hide-mobile { display: none !important; }
+}
+
+/* Tablet polish (recovery 769–1024 range simplified) */
+@media (min-width: 641px) and (max-width: 900px) {
+  #content, .content {
+    padding: 16px 16px 24px !important;
+  }
   .krow, #dashKrow {
     grid-template-columns: 1fr 1fr !important;
-    gap: 8px !important;
-    width: 100% !important;
+    gap: 12px !important;
   }
-
-  .sec-title {
-    font-size: 14px !important;
+  .frow-3, .frow-4 {
     flex-wrap: wrap !important;
   }
-
-  .csetup-grid {
-    display: flex !important;
-    flex-direction: column !important;
-    gap: 14px !important;
-    width: 100% !important;
+  .frow-3 .fgrp, .frow-4 .fgrp {
+    flex: 1 1 45% !important;
+    min-width: 140px !important;
   }
-  .csetup-grid > * { width: 100% !important; max-width: 100% !important; }
-  .cs-dt-wrap {
-    flex-direction: column !important;
-    align-items: stretch !important;
-  }
-  .cs-dt-wrap input { width: 100% !important; }
 }
 
 </style>
@@ -28021,13 +28117,13 @@
     _toast._t = null;
 
     if ('serviceWorker' in navigator) {
-      navigator.serviceWorker.register('sw.js?v=6').then(function (reg) {
+      navigator.serviceWorker.register('sw.js?v=7').then(function (reg) {
         reg.update();
         // Purge any leftover old caches from previous SW versions
         if (window.caches) {
           caches.keys().then(function (keys) {
             keys.forEach(function (k) {
-              if (k.indexOf('joolry-v6') !== 0) caches.delete(k);
+              if (k.indexOf('joolry-v7') !== 0) caches.delete(k);
             });
           });
         }
