@@ -7479,6 +7479,63 @@ function getTeamAttendanceStatus(dateStr, passedUser) {
   });
 }
 
+/** Convert "HH:mm" / "HH:mm:ss" / Date-ish string → minutes from midnight */
+function _toMins(t) {
+  if (t === null || t === undefined || t === '' || t === '-') return 0;
+  if (t instanceof Date && !isNaN(t.getTime())) {
+    return t.getHours() * 60 + t.getMinutes();
+  }
+  var s = String(t).trim();
+  // "2026-10-03 10:07:00" or "10:07"
+  var m = s.match(/(\d{1,2}):(\d{2})/);
+  if (!m) return 0;
+  return (parseInt(m[1], 10) || 0) * 60 + (parseInt(m[2], 10) || 0);
+}
+
+function _attHoursLabel(ciRaw, coRaw) {
+  var ci = _toMins(ciRaw);
+  var co = _toMins(coRaw);
+  if (!ci || !co || co <= ci) return '';
+  var diff = co - ci;
+  return Math.floor(diff / 60) + 'h ' + (diff % 60) + 'm';
+}
+
+/**
+ * Write updates to Daily-Attendance row matching emp_id + date.
+ * Always scans the live sheet (no cache) so Mark OUT never misses.
+ */
+function _updateDailyAttRow(empId, date, updates) {
+  var ss = _getSpreadsheet(NEW_ATTENDANCE_SHEET_ID);
+  var sh = ss.getSheetByName('Daily-Attendance');
+  if (!sh || sh.getLastRow() < 2) return false;
+  var vals = sh.getDataRange().getValues();
+  var hdrs = vals[0].map(function (h) { return String(h || '').trim(); });
+  var iEmp = hdrs.indexOf('emp_id');
+  var iDt = hdrs.indexOf('date');
+  if (iEmp < 0 || iDt < 0) return false;
+
+  // Ensure any new columns exist
+  Object.keys(updates || {}).forEach(function (k) {
+    if (hdrs.indexOf(k) < 0) {
+      sh.getRange(1, hdrs.length + 1).setValue(k);
+      hdrs.push(k);
+    }
+  });
+
+  for (var i = 1; i < vals.length; i++) {
+    if (String(vals[i][iEmp] || '').trim() !== String(empId).trim()) continue;
+    if (_normDateSafe(vals[i][iDt]) !== date) continue;
+    Object.keys(updates).forEach(function (k) {
+      var ci = hdrs.indexOf(k);
+      if (ci >= 0) sh.getRange(i + 1, ci + 1).setValue(updates[k]);
+    });
+    SpreadsheetApp.flush();
+    _clearSheetCache(NEW_ATTENDANCE_SHEET_ID, 'Daily-Attendance');
+    return true;
+  }
+  return false;
+}
+
 function markStaffAttendance(records, passedUser) {
   var user = verifyUser(passedUser);
   if (!user) throw new Error('NOT_AUTHENTICATED');
@@ -7487,6 +7544,9 @@ function markStaffAttendance(records, passedUser) {
   if (!records || !records.length) return { success: true, saved: 0 };
 
   _ensureDailyAttTab();
+  // Bust cache so we see latest rows before update
+  try { _clearSheetCache(NEW_ATTENDANCE_SHEET_ID, 'Daily-Attendance'); } catch (eC) { }
+
   var markedBy = String(user['Name'] || user.name || '') + ' (' + String(user['Role'] || user.role || '') + ')';
   var nowTs = getISTTimestamp();
   var saved = 0;
@@ -7501,65 +7561,45 @@ function markStaffAttendance(records, passedUser) {
     var checkOut = String(rec.check_out || '').trim();
     if (!empId) return;
 
-    // Check for existing record
-    var existing = getSheetData(NEW_ATTENDANCE_SHEET_ID, 'Daily-Attendance').filter(function (r) {
-      return String(r['emp_id'] || '').trim() === empId && _normDateSafe(r['date']) === date;
-    });
+    // Live sheet scan — emp_id + date (never trust cache for OUT updates)
+    var ss = _getSpreadsheet(NEW_ATTENDANCE_SHEET_ID);
+    var sh = ss.getSheetByName('Daily-Attendance');
+    var exists = false;
+    var existingCi = checkIn;
+    if (sh && sh.getLastRow() > 1) {
+      var vals = sh.getDataRange().getValues();
+      var hdrs = vals[0].map(function (h) { return String(h || '').trim(); });
+      var iEmp = hdrs.indexOf('emp_id');
+      var iDt = hdrs.indexOf('date');
+      var iCi = hdrs.indexOf('check_in');
+      for (var i = 1; i < vals.length; i++) {
+        if (String(vals[i][iEmp] || '').trim() !== empId) continue;
+        if (_normDateSafe(vals[i][iDt]) !== date) continue;
+        exists = true;
+        if (iCi >= 0 && vals[i][iCi]) existingCi = String(vals[i][iCi]);
+        break;
+      }
+    }
 
-    if (existing.length) {
-      // Update existing row for THIS date (match att_id when possible)
+    if (exists) {
       var updates = { status: status };
       if (checkIn) updates['check_in'] = checkIn;
       if (checkOut) {
         updates['check_out'] = checkOut;
-        var ciRaw = existing[0]['check_in'] || checkIn;
-        var ci = _toMins(ciRaw);
-        var co = _toMins(checkOut);
-        if (co > ci) {
-          var diffH = Math.floor((co - ci) / 60);
-          var diffM = (co - ci) % 60;
-          updates['total_hours'] = diffH + 'h ' + diffM + 'm';
-        }
+        updates['check_out_ts'] = date + ' ' + checkOut + (checkOut.length === 5 ? ':00' : '');
+        var hrs = _attHoursLabel(existingCi || checkIn, checkOut);
+        if (hrs) updates['total_hours'] = hrs;
       }
-      var attKey = String(existing[0]['att_id'] || '').trim();
-      if (attKey) {
-        updateRowByField(NEW_ATTENDANCE_SHEET_ID, 'Daily-Attendance', 'att_id', attKey, updates);
-      } else {
-        // Fallback: scan sheet for emp_id + date
-        try {
-          var ssA = _getSpreadsheet(NEW_ATTENDANCE_SHEET_ID);
-          var shA = ssA.getSheetByName('Daily-Attendance');
-          if (shA && shA.getLastRow() > 1) {
-            var valsA = shA.getDataRange().getValues();
-            var hdrA = valsA[0].map(function (h) { return String(h || '').trim(); });
-            var iEmp = hdrA.indexOf('emp_id');
-            var iDt = hdrA.indexOf('date');
-            for (var ri = 1; ri < valsA.length; ri++) {
-              if (String(valsA[ri][iEmp] || '').trim() !== empId) continue;
-              if (_normDateSafe(valsA[ri][iDt]) !== date) continue;
-              Object.keys(updates).forEach(function (k) {
-                var ci2 = hdrA.indexOf(k);
-                if (ci2 >= 0) shA.getRange(ri + 1, ci2 + 1).setValue(updates[k]);
-              });
-              break;
-            }
-            _clearSheetCache(NEW_ATTENDANCE_SHEET_ID, 'Daily-Attendance');
-          }
-        } catch (eUp) {
-          updateRowByField(NEW_ATTENDANCE_SHEET_ID, 'Daily-Attendance', 'emp_id', empId, updates);
-        }
-      }
-    } else if (!existing.length) {
+      updates['marked_by'] = markedBy;
+      var ok = _updateDailyAttRow(empId, date, updates);
+      if (!ok) throw new Error('Could not update attendance for ' + empId + ' on ' + date);
+    } else {
       // Create new record
       var attId = 'ATT-' + _hex8();
       var days = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
       var dObj = new Date(date + 'T00:00:00');
-      var dayNm = days[dObj.getDay()];
-      var totalH = '';
-      if (checkIn && checkOut) {
-        var ci2 = _toMins(checkIn), co2 = _toMins(checkOut);
-        if (co2 > ci2) { totalH = Math.floor((co2 - ci2) / 60) + 'h ' + ((co2 - ci2) % 60) + 'm'; }
-      }
+      var dayNm = days[dObj.getDay()] || '';
+      var totalH = _attHoursLabel(checkIn, checkOut);
       var row = {
         att_id: attId, emp_id: empId, emp_name: empName, dept: dept,
         date: date, day: dayNm,
@@ -7567,6 +7607,7 @@ function markStaffAttendance(records, passedUser) {
         check_out: checkOut || (status === 'A' ? '-' : ''),
         total_hours: totalH || (status === 'A' ? '-' : ''),
         check_in_ts: checkIn ? date + ' ' + checkIn + ':00' : '-',
+        check_out_ts: checkOut ? date + ' ' + checkOut + ':00' : '',
         status: status,
         source: 'ManagerMark',
         marked_by: markedBy,
@@ -7577,6 +7618,7 @@ function markStaffAttendance(records, passedUser) {
     saved++;
   });
 
+  try { _clearSheetCache(NEW_ATTENDANCE_SHEET_ID, 'Daily-Attendance'); } catch (e2) { }
   return { success: true, saved: saved };
 }
 
