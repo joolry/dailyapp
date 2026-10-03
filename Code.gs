@@ -2323,49 +2323,78 @@ function _generateChecklistForTask(t) {
     return d;
   }
 
-  // ── Build rows — fixed occurrence counts (reliable, independent of calendar end date) ──
+  // ── Build rows — SIMPLE loops, no nearestWorkDay snap (that was collapsing to 1 row) ──
   var rows = [];
-  var cur = new Date(startDt);
-  var count = 0;
-  // How many occurrences to generate per frequency
-  var targetCount = 1;
-  switch (freq) {
-    case 'D': targetCount = 90; break;   // ~3 months
-    case 'W': targetCount = 26; break;   // ~6 months
-    case 'F': targetCount = 13; break;   // ~6 months
-    case 'M': case '2M': case 'Q': case '4M': case 'H': targetCount = 12; break;
-    case 'Y': targetCount = 3; break;
-    case 'E1st': case 'E2nd': case 'E3rd': case 'E4th': case 'ELast': targetCount = 12; break;
-    default: targetCount = 1;
+  var seenDays = {};
+
+  function _pushRow(dateObj) {
+    // Skip Sunday when SKIP_SUNDAYS=Yes
+    if (skipSundays === 'Yes' && dateObj.getDay() === 0) return false;
+    var ds = Utilities.formatDate(dateObj, tz, 'yyyyMMdd');
+    if (seenDays[ds]) return false;
+    seenDays[ds] = true;
+    rows.push([
+      String(t.emp_id || ''), String(t.emp_name || ''), String(t.email || ''), String(t.dept || ''),
+      String(t.uid || '') + '_' + ds, freq, String(t.task_name || ''),
+      _makePlannedVal(dateObj), '', '', String(t.email || ''), '', String(t.uid || '')
+    ]);
+    return true;
   }
 
-  var seenDays = {};
-  var safety = 0;
-  while (count < targetCount && safety < 600) {
-    safety++;
-    var wd = nearestWorkDay(new Date(cur));
-    var ds = Utilities.formatDate(wd, tz, 'yyyyMMdd');
-    if (!seenDays[ds]) {
-      seenDays[ds] = true;
-      rows.push([
-        String(t.emp_id || ''), String(t.emp_name || ''), String(t.email || ''), String(t.dept || ''),
-        String(t.uid) + '_' + ds, freq, String(t.task_name || ''),
-        _makePlannedVal(wd), '', '', String(t.email || ''), '', String(t.uid || '')
-      ]);
-      count++;
+  var cur = new Date(startDt.getFullYear(), startDt.getMonth(), startDt.getDate(), 12, 0, 0);
+  var i;
+
+  if (freq === 'D') {
+    // 90 weekdays (~3 months)
+    for (i = 0; i < 150 && rows.length < 90; i++) {
+      _pushRow(new Date(cur));
+      cur.setDate(cur.getDate() + 1);
     }
-    cur = nextDate(new Date(wd), freq);
+  } else if (freq === 'W') {
+    for (i = 0; i < 26; i++) {
+      _pushRow(new Date(cur));
+      cur.setDate(cur.getDate() + 7);
+    }
+  } else if (freq === 'F') {
+    for (i = 0; i < 13; i++) {
+      _pushRow(new Date(cur));
+      cur.setDate(cur.getDate() + 14);
+    }
+  } else if (freq === 'M' || freq === '2M' || freq === 'Q' || freq === '4M' || freq === 'H') {
+    var monthStep = ({ 'M': 1, '2M': 2, 'Q': 3, '4M': 4, 'H': 6 })[freq] || 1;
+    for (i = 0; i < 12; i++) {
+      _pushRow(new Date(cur));
+      cur.setMonth(cur.getMonth() + monthStep);
+    }
+  } else if (freq === 'Y') {
+    for (i = 0; i < 3; i++) {
+      _pushRow(new Date(cur));
+      cur.setFullYear(cur.getFullYear() + 1);
+    }
+  } else if (['E1st', 'E2nd', 'E3rd', 'E4th', 'ELast'].indexOf(freq) >= 0) {
+    for (i = 0; i < 12; i++) {
+      var nxt = nextDate(new Date(cur), freq);
+      _pushRow(nxt || new Date(cur));
+      cur = nxt || new Date(cur.getFullYear(), cur.getMonth() + 1, cur.getDate());
+    }
+  } else {
+    // One-time / unknown — single row
+    _pushRow(new Date(cur));
   }
 
   // Absolute safety — at least one row
   if (!rows.length) {
-    var todayDs = Utilities.formatDate(new Date(), tz, 'yyyyMMdd');
+    var fallback = new Date(startDt);
+    if (fallback.getDay() === 0) fallback.setDate(fallback.getDate() + 1);
+    var todayDs = Utilities.formatDate(fallback, tz, 'yyyyMMdd');
     rows.push([
       String(t.emp_id || ''), String(t.emp_name || ''), String(t.email || ''), String(t.dept || ''),
-      String(t.uid) + '_' + todayDs, freq, String(t.task_name || ''),
-      _makePlannedVal(new Date()), '', '', String(t.email || ''), '', String(t.uid || '')
+      String(t.uid || '') + '_' + todayDs, freq, String(t.task_name || ''),
+      _makePlannedVal(fallback), '', '', String(t.email || ''), '', String(t.uid || '')
     ]);
   }
+
+  console.log('[_generateChecklistForTask] uid=' + t.uid + ' freq=' + freq + ' rows=' + rows.length + ' start=' + Utilities.formatDate(startDt, tz, 'yyyy-MM-dd'));
 
   var ss2 = _getSpreadsheet(CHECKLIST_MASTER_ID);
   var sh = ss2.getSheetByName('Checklist');
@@ -2390,15 +2419,14 @@ function _generateChecklistForTask(t) {
     return row;
   });
 
-  // ── Dedup in RAM before writing (fast, zero extra API calls) ──────────────
-  // Task IDs are uid_yyyyMMdd — unique per occurrence. Dups only if re-generated.
+  // ── Dedup in RAM before writing ────────────────────────────────────────────
   var iTaskId = hIdx['Task ID'];
   if (iTaskId !== undefined) {
-    // Also check EXISTING sheet Task IDs so we don't re-add already-written rows
     var existingLastRow = sh.getLastRow();
     var existingTaskIds = {};
-    if (existingLastRow > 1) {
-      sh.getRange(2, iTaskId + 1, existingLastRow - 1, 1).getValues()
+    // FIX: previous code used (2, col, lastRow-1) which throws when lastRow===2
+    if (existingLastRow >= 2) {
+      sh.getRange(2, iTaskId + 1, existingLastRow, 1).getValues()
         .forEach(function (r) { if (r[0]) existingTaskIds[String(r[0]).trim()] = true; });
     }
     var seenNew = {};
