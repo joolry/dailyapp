@@ -12746,6 +12746,88 @@
   }
 }
 
+/* ══════════════════════════════════════════════════════════════════════════
+   FINAL MOBILE FORCE-ALIGN (highest priority — overrides everything above)
+   ══════════════════════════════════════════════════════════════════════════ */
+@media (max-width: 640px) {
+  /* Module headers always stack */
+  .mod-head {
+    display: flex !important;
+    flex-direction: column !important;
+    align-items: stretch !important;
+    gap: 10px !important;
+  }
+  .mod-head > div:first-child { width: 100% !important; }
+  .mod-head .btn, .mod-head button { width: 100% !important; min-height: 44px !important; }
+
+  /* All form rows become single column */
+  .frow, .frow-3, .frow-4, .form-g, .form-row {
+    display: flex !important;
+    flex-direction: column !important;
+    gap: 12px !important;
+  }
+  .fgrp, .frow .fgrp {
+    width: 100% !important;
+    max-width: 100% !important;
+    min-width: 0 !important;
+    flex: 0 0 auto !important;
+  }
+  .fgrp input, .fgrp select, .fgrp textarea,
+  input[type="date"], input[type="time"], input[type="text"], select, textarea {
+    width: 100% !important;
+    max-width: 100% !important;
+    min-height: 44px !important;
+    font-size: 16px !important; /* prevents iOS zoom */
+    box-sizing: border-box !important;
+  }
+
+  /* Leave form specifically */
+  .leave-req-form { width: 100% !important; }
+  .leave-req-form .frow { flex-direction: column !important; }
+  .leave-req-form .fgrp { width: 100% !important; }
+
+  /* Modal on mobile = almost full width bottom-friendly */
+  .modal-ov.on {
+    align-items: flex-end !important;
+    padding: 0 !important;
+  }
+  .modal-box.open {
+    width: 100% !important;
+    max-width: 100% !important;
+    max-height: 92svh !important;
+    border-radius: 20px 20px 0 0 !important;
+    margin: 0 !important;
+  }
+  .modal-title { font-size: 16px !important; padding: 16px 16px 12px !important; }
+  .modal-body { padding: 12px 16px 16px !important; }
+  .modal-foot { padding: 12px 16px calc(12px + env(safe-area-inset-bottom,0px)) !important; }
+  .modal-foot .btn { width: 100% !important; min-height: 46px !important; }
+
+  /* Content area */
+  #content, .content {
+    padding: 12px 12px calc(100px + env(safe-area-inset-bottom, 0px)) !important;
+  }
+
+  /* Section titles */
+  .sec-title {
+    font-size: 14px !important;
+    flex-wrap: wrap !important;
+  }
+
+  /* Task setup cards full width */
+  .csetup-grid {
+    display: flex !important;
+    flex-direction: column !important;
+    gap: 14px !important;
+  }
+  .csetup-grid > * { width: 100% !important; max-width: 100% !important; }
+  .cs-dt-wrap {
+    flex-direction: column !important;
+    align-items: stretch !important;
+  }
+  .cs-dt-wrap input { width: 100% !important; }
+}
+
 </style>
 </head>
 
