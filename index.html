@@ -18664,22 +18664,18 @@
       _gas('markStaffAttendance', [[{
         emp_id: empId, emp_name: empName, dept: dept,
         date: _teamAttDate, check_in: inT, check_out: outT, status: st
-      }]], function () {
-        _teamAttData.forEach(function (r) {
-          if (r.emp_id === empId) {
-            r.marked = true;
-            r.check_in = inT || r.check_in;
-            r.check_out = outT || r.check_out;
-            r.status = st;
-            r.needs_checkout = !!(r.check_in && !r.check_out);
-            r.complete = !!(r.check_in && r.check_out);
-          }
-        });
+      }]], function (res) {
         _toast('✓ ' + empName + (outT ? ' OUT saved' : ' marked ' + (st === 'P' ? 'Present' : st === 'HD' ? 'Half Day' : 'Absent')), 'ok');
-        _renderTeamList();
+        // Reload from server so UI matches sheet (no false local-only update)
+        _tamReload();
       }, function (e) {
         _toast(e.message || 'Mark failed', 'err');
-        if (btn) {btn.disabled = false; btn.innerHTML = '<i class="fas fa-check"></i> Mark';}
+        if (btn) {
+          btn.disabled = false;
+          btn.innerHTML = outT
+            ? '<i class="fas fa-sign-out-alt"></i> Mark OUT'
+            : '<i class="fas fa-check"></i> Mark';
+        }
       });
     }
 
@@ -28275,13 +28271,13 @@
     _toast._t = null;
 
     if ('serviceWorker' in navigator) {
-      navigator.serviceWorker.register('sw.js?v=11').then(function (reg) {
+      navigator.serviceWorker.register('sw.js?v=12').then(function (reg) {
         reg.update();
         // Purge any leftover old caches from previous SW versions
         if (window.caches) {
           caches.keys().then(function (keys) {
             keys.forEach(function (k) {
-              if (k.indexOf('joolry-v11') !== 0) caches.delete(k);
+              if (k.indexOf('joolry-v12') !== 0) caches.delete(k);
             });
           });
         }
