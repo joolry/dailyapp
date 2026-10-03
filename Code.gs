@@ -2091,16 +2091,42 @@ function saveNewTask(taskObj, passedUser) {
   }
 
   var tlRowMap = {
-    'Task': String(taskObj.task_name || ''), 'Doer Name': String(taskObj.emp_name || ''),
-    'Doer ID': String(taskObj.emp_id || ''), 'Department': String(taskObj.dept || ''),
-    'Frequency': freq, 'Day/Date': dayDateVal,
-    'Week Day': weekDayVal, 'Month Day': monthDayVal,
-    'Status': '', 'Setup Task ID': uid, 'Delete Repeated Task': ''
+    'Task': String(taskObj.task_name || ''),
+    'Task Name': String(taskObj.task_name || ''),
+    'Doer Name': String(taskObj.emp_name || ''),
+    'Name': String(taskObj.emp_name || ''),
+    'Doer ID': String(taskObj.emp_id || ''),
+    'Emp ID': String(taskObj.emp_id || ''),
+    'Employee ID': String(taskObj.emp_id || ''),
+    'Department': String(taskObj.dept || ''),
+    'Dept': String(taskObj.dept || ''),
+    'Frequency': freq,
+    'Freq': freq,
+    'Day/Date': dayDateVal,
+    'Day Date': dayDateVal,
+    'Week Day': weekDayVal,
+    'Weekday': weekDayVal,
+    'Month Day': monthDayVal,
+    'Status': '',
+    'Setup Task ID': uid,
+    'Task ID': uid,
+    'Delete Repeated Task': ''
   };
+  // Case-insensitive header match
   var tlRowArr = tlHdrs.map(function (h) {
     var k = String(h || '').trim();
-    return tlRowMap[k] !== undefined ? tlRowMap[k] : '';
+    if (tlRowMap[k] !== undefined) return tlRowMap[k];
+    var kl = k.toLowerCase();
+    for (var mk in tlRowMap) {
+      if (mk.toLowerCase() === kl) return tlRowMap[mk];
+    }
+    return '';
   });
+  // Ensure at least Task + Doer ID columns got values
+  var nonEmpty = tlRowArr.filter(function (v) { return String(v).trim() !== ''; }).length;
+  if (nonEmpty < 2) {
+    throw new Error('Task List headers mismatch. Found: ' + tlHdrs.join(' | ') + '. Need columns like Task, Doer ID, Frequency, Setup Task ID');
+  }
 
   var newTlRow = tlSh.getLastRow() + 1;
 
@@ -2145,33 +2171,51 @@ function saveNewTask(taskObj, passedUser) {
  * - Duplicate Task IDs removed after append
  */
 function _generateChecklistForTask(t) {
-  var startDt = new Date(t.start_date);
+  // Parse start_date as local calendar date (avoid UTC shift)
+  var startDt;
+  try {
+    var sd = String(t.start_date || '').substring(0, 10);
+    if (/^\d{4}-\d{2}-\d{2}$/.test(sd)) {
+      var sp = sd.split('-');
+      startDt = new Date(parseInt(sp[0], 10), parseInt(sp[1], 10) - 1, parseInt(sp[2], 10), 12, 0, 0);
+    } else {
+      startDt = new Date(t.start_date);
+    }
+  } catch (e) { startDt = new Date(); }
   if (isNaN(startDt.getTime())) startDt = new Date();
 
-  // Load Working Day Calendar (try both spellings)
+  // Load Working Day Calendar (try both spellings + Week List which exists in Joolry master)
   var calRows = [];
   try { calRows = getSheetData(MASTER_SHEET_ID, 'Working Day Calender'); } catch (e1) { }
   if (!calRows || !calRows.length) {
     try { calRows = getSheetData(MASTER_SHEET_ID, 'Working Day Calendar'); } catch (e2) { }
   }
+  if (!calRows || !calRows.length) {
+    try { calRows = getSheetData(MASTER_SHEET_ID, 'Week List'); } catch (e3) { }
+  }
   var workDays = (calRows || []).map(function (r) {
-    var d = r['Working Dates'] || r['Working Date'] || r['Date'] || r['date'] || '';
+    var d = r['Working Dates'] || r['Working Date'] || r['Date'] || r['date'] || r['Week Start'] || '';
     if (!d) return null;
     try {
       return Utilities.formatDate(new Date(d), _getTimezone(), 'yyyy-MM-dd');
-    } catch (e3) {
+    } catch (e4) {
       var s = String(d).substring(0, 10);
       return /^\d{4}-\d{2}-\d{2}$/.test(s) ? s : null;
     }
   }).filter(Boolean);
 
-  // Fallback: if calendar empty, synthesize next 180 weekdays from start date
+  // Fallback: if calendar empty, synthesize next 180 working days from start date
+  // (Mon–Sat when SKIP_SUNDAYS=Yes, else Mon–Fri)
   if (!workDays.length) {
     console.warn('[_generateChecklistForTask] Working Day Calendar empty — using 180-day weekday fallback');
+    var skipSun = (getConfig('SKIP_SUNDAYS', 'Yes') === 'Yes');
     var syn = new Date(startDt.getTime());
-    for (var si = 0; si < 260 && workDays.length < 180; si++) {
+    for (var si = 0; si < 280 && workDays.length < 180; si++) {
       var dow = syn.getDay();
-      if (dow !== 0 && dow !== 6) { // Mon–Fri
+      // Skip Sunday always when skipSun; also skip Sat only when NOT skipSun (strict weekdays)
+      if (dow === 0) { /* Sunday */ }
+      else if (!skipSun && dow === 6) { /* Saturday when full weekdays only */ }
+      else {
         workDays.push(Utilities.formatDate(syn, _getTimezone(), 'yyyy-MM-dd'));
       }
       syn.setDate(syn.getDate() + 1);
@@ -2367,6 +2411,55 @@ function _generateChecklistForTask(t) {
   // Write ALL rows in ONE setValues call
   sh.getRange(firstNewRow, 1, grid.length, numCols).setValues(grid);
   SpreadsheetApp.flush(); // commit
+
+  // ── Also append current-week rows to Checklist_Today so they appear immediately ──
+  try {
+    var shToday = ss2.getSheetByName('Checklist_Today');
+    if (shToday && iPlnd !== undefined) {
+      var nowIst = new Date(Utilities.formatDate(new Date(), tz, "yyyy-MM-dd'T'HH:mm:ss"));
+      var dayOfWeek = nowIst.getDay(); // 0=Sun
+      var daysFromMon = (dayOfWeek === 0) ? 6 : dayOfWeek - 1;
+      var monday = new Date(nowIst);
+      monday.setDate(nowIst.getDate() - daysFromMon);
+      var weekDatesSet = {};
+      for (var wi = 0; wi < 6; wi++) {
+        var wd = new Date(monday);
+        wd.setDate(monday.getDate() + wi);
+        weekDatesSet[Utilities.formatDate(wd, tz, 'yyyy-MM-dd')] = true;
+      }
+      var todayGrid = [];
+      for (var gi = 0; gi < grid.length; gi++) {
+        var pVal = grid[gi][iPlnd];
+        var pDateStr = '';
+        if (pVal instanceof Date) {
+          pDateStr = Utilities.formatDate(pVal, tz, 'yyyy-MM-dd');
+        } else {
+          pDateStr = _normDateSafe(pVal);
+        }
+        if (pDateStr && weekDatesSet[pDateStr]) {
+          todayGrid.push(grid[gi].slice());
+        }
+      }
+      if (todayGrid.length > 0) {
+        var tLast = shToday.getLastRow();
+        var tFirst = tLast + 1;
+        // Ensure header exists
+        if (tLast < 1) {
+          shToday.getRange(1, 1, 1, numCols).setValues([hdrs]);
+          tFirst = 2;
+        }
+        if (iPlnd !== undefined) {
+          shToday.getRange(tFirst, iPlnd + 1, todayGrid.length, 1)
+            .setNumberFormat('dd/mm/yyyy hh:mm:ss');
+        }
+        shToday.getRange(tFirst, 1, todayGrid.length, numCols).setValues(todayGrid);
+        SpreadsheetApp.flush();
+        try { _clearSheetCache(CHECKLIST_MASTER_ID, 'Checklist_Today'); } catch (ce) {}
+      }
+    }
+  } catch (todayErr) {
+    console.warn('[_generateChecklistForTask] Checklist_Today append failed: ' + todayErr.message);
+  }
 
   // Mark Sent
   try {
